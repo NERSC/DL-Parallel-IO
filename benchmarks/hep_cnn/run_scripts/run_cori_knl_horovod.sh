@@ -50,6 +50,8 @@
 # such enhancements or derivative works thereof, in binary and source code form.
 #---------------------------------------------------------------
 
+export HDF5_USE_FILE_LOCKING=FALSE
+
 # Environment
 module load tensorflow/intel-1.8.0-py27
 export PYTHONPATH=$PWD:$PYTHONPATH

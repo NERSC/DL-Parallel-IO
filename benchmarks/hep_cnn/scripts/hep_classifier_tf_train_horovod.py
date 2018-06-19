@@ -71,6 +71,10 @@ sys.path.append("../")
 #slurm helpers
 import slurm_tf_helper.setup_clusters as sc
 
+sys.path.append("../..")
+
+from utility_classes.time_logger import TimeLogger as logger
+
 #housekeeping
 import networks.binary_classifier_tf as bc
 
@@ -84,6 +88,9 @@ hvd.init()
 # Useful Functions
 
 def parse_arguments():
+    parse_arg_logger = logger(int(args["task_index"]), "Parse Arguments")
+    parse_arg_logger.start_timer()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, help="specify a config file in json format")
     parser.add_argument("--num_tasks", type=int, default=1, help="specify the number of tasks")
@@ -142,12 +149,15 @@ def parse_arguments():
     args['precision'] = tf.float32
     if pargs.precision == "fp16":
         args['precision'] = tf.float16
-    
+
+    parse_arg_logger.end_timer()
     return args
 
 
 def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
-    
+    train_loop_logger = logger(int(args["task_index"]), "Train Loop")
+    train_loop_logger.start_timer()
+
     #counter stuff
     trainset.reset()
     validationset.reset()
@@ -273,7 +283,7 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
             print(time.time(),"COMPLETED epoch %d, average validation accu %g"%(epochs_completed, validation_accuracy))
             validation_auc = sess.run(auc_fn[0])
             print(time.time(),"COMPLETED epoch %d, average validation auc %g"%(epochs_completed, validation_auc))
-
+    train_loop_logger.end_timer()
 
 # Parse Parameters
 
