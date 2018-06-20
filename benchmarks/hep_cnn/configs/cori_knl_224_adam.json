@@ -1,7 +1,7 @@
 {
     "input_shape": [224, 224, 3],
-    "inputpath": "/project/projectdirs/dasrepo/atlas_rpv_susy/benchmark_data/224x224",
-    "outputpath": "/global/cscratch1/sd/ftc/hep_cnn_benchmark/knl_224_224_3_steve_version_cori_nodes_2_attempt_1",
+    "inputpath": "/global/cscratch1/sd/ftc/deep_learning_data/hep_cnn/224x224",
+    "outputpath": "/global/cscratch1/sd/ftc/hep_cnn_benchmark/knl_224_224_3_adam",
     "trainsamples": 726016,
     "arch" : "knl",
     "mode": "sync",
