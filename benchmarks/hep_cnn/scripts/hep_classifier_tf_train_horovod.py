@@ -150,7 +150,7 @@ def parse_arguments():
     if pargs.precision == "fp16":
         args['precision'] = tf.float16
 
-    parse_arg_logger.set_rank(args['task_index'])
+    parse_arg_logger.set_rank(int(args['task_index']))
     parse_arg_logger.end_timer()
     return args
 
@@ -287,7 +287,7 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
     train_loop_logger.end_timer()
 
 global_time_logger = logger(-1, "Global Total Time")
-global_time_logger.start_time()
+global_time_logger.start_timer()
 
 # Parse Parameters
 
@@ -296,8 +296,8 @@ args = parse_arguments()
 
 # Multi-Node Stuff
 
-initialization_time_logger = logger(args['task_index'], "Server Initialization")
-initialization_time_logger.start_time()
+initialization_time_logger = logger(int(args['task_index']), "Server Initialization")
+initialization_time_logger.start_timer()
 
 #decide who will be worker and who will be parameters server
 if args['num_tasks'] > 1:
@@ -318,9 +318,9 @@ else:
     args['target']=''
     args['hot_spares']=0
 
-initialization_time_logger.end_time()
+initialization_time_logger.end_timer()
 
-initialization_time_logger.start_time(args['task_index'], "Miscellaneous Initialization")
+initialization_time_logger.start_timer(args['task_index'], "Miscellaneous Initialization")
 
 #general stuff
 if not args["batch_size_per_node"]:
@@ -367,11 +367,11 @@ if (args['node_type'] == 'worker'):
 
     print("Rank",args['task_index'],": using ",num_inter_threads,"-way task parallelism with ",num_intra_threads,"-way data parallelism.")
 
-initialization_time_logger.end_time()
+initialization_time_logger.end_timer()
 
 # Build Network and Functions
 
-initialization_time_logger.start_time(args['task_index'], "Build Network and Functions")
+initialization_time_logger.start_timer(int(args['task_index']), "Build Network and Functions")
 
 if args['node_type'] == 'worker':
     print("Rank",args["task_index"],":","Building model")
@@ -388,11 +388,11 @@ if args['node_type'] == 'worker':
         print("Variables for rank",args["task_index"],":",variables)
         print("Network for rank",args["task_index"],":",network)
 
-initialization_time_logger.end_time()
+initialization_time_logger.end_timer()
 
 # Setup Iterators
 
-initialization_time_logger.start_time(args['task_index'], "Setup Iterators")
+initialization_time_logger.start_timer(int(args['task_index']), "Setup Iterators")
 
 if args['node_type'] == 'worker':
     print("Rank",args["task_index"],":","Setting up iterators")
@@ -412,9 +412,9 @@ if args['node_type'] == 'worker':
         trainset = bc.DummySet(input_shape=args['input_shape'], samples_per_epoch=10000, task_index=args['task_index'])
         validationset = bc.DummySet(input_shape=args['input_shape'], samples_per_epoch=1000, task_index=args['task_index'])
 
-initialization_time_logger.end_time()
+initialization_time_logger.end_timer()
 
-initialization_time_logger.start_timer(args['task_index'], "Determine Stopping Point and Which Model to Load")
+initialization_time_logger.start_timer(int(args['task_index']), "Determine Stopping Point and Which Model to Load")
 
 #Determine stopping point, i.e. compute last_step:
 args["last_step"] = int(args["trainsamples"] * args["num_epochs"] / (args["train_batch_size_per_node"] * args["num_workers"]))
@@ -429,9 +429,9 @@ if not metafilelist:
     #no model found, restart from scratch
     args['restart']=True
 
-initialization_time_logger.end_time()
+initialization_time_logger.end_timer()
 
-io_training_time_logger = logger(args['task_index'], "IO and Training")
+io_training_time_logger = logger(int(args['task_index']), "IO and Training")
 io_training_time_logger.start_timer()
 
 #initialize session
@@ -495,6 +495,6 @@ if (args['node_type'] == 'worker'):
                 total_time -= time.time()
                 print("FINISHED Training. Total time %g"%(total_time))
 
-io_training_time_logger.end_time()
+io_training_time_logger.end_timer()
 
-global_time_logger.end_time()
+global_time_logger.end_timer()
