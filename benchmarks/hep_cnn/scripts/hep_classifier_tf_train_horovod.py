@@ -150,7 +150,6 @@ def parse_arguments():
     if pargs.precision == "fp16":
         args['precision'] = tf.float16
 
-    parse_arg_logger.set_rank(int(args['task_index']))
     parse_arg_logger.end_timer()
     return args
 
@@ -296,7 +295,7 @@ args = parse_arguments()
 
 # Multi-Node Stuff
 
-initialization_time_logger = logger(int(args['task_index']), "Server Initialization")
+initialization_time_logger = logger(-1, "Server Initialization")
 initialization_time_logger.start_timer()
 
 #decide who will be worker and who will be parameters server
@@ -318,9 +317,10 @@ else:
     args['target']=''
     args['hot_spares']=0
 
+initialization_time_logger.set_rank(int(args['task_index']))
 initialization_time_logger.end_timer()
 
-initialization_time_logger.start_timer(args['task_index'], "Miscellaneous Initialization")
+initialization_time_logger.start_timer(args['task_index'], "Miscellaneous Initializations")
 
 #general stuff
 if not args["batch_size_per_node"]:
@@ -497,4 +497,5 @@ if (args['node_type'] == 'worker'):
 
 io_training_time_logger.end_timer()
 
+global_time_logger.set_rank(int(args['task_index']))
 global_time_logger.end_timer()
