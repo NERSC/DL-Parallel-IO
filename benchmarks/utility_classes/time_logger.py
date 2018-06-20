@@ -9,6 +9,12 @@ class TimeLogger:
         self.rank = rank
         self.action = action
 
+    def set_rank(self, rank):
+        self.rank = rank
+
+    def set_action(self, action):
+        self.action = action
+
     def start_timer(self, rank=-1, action=""):
         if action != "":
             self.action = action
