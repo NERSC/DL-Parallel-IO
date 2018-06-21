@@ -37,7 +37,9 @@ class TimeLogger:
         if time_taken < 0:
             print("TIME LOGGER OUTPUT", "ERROR", "End time is less than start time")
         print("TIME LOGGER OUTPUT", "Rank %d"%(self.rank), self.action_name, self.action_description,
-              "Start Time: %g"%(self.start_time), "End Time: %g"%(self.end_time), "Time Taken: %g"%(time_taken))
+              "Start Time: %g"%(self.start_time), "End Time: %g"%(self.end_time), "Time Taken: %g"%(time_taken),
+              "For Excel:{}, {}, {}, {}, {}, {}".format(self.rank, self.action_name, self.action_description,
+                                                         self.start_time, self.end_time, time_taken))
 
     def get_caller_name(self):
         return sys._getframe(2).f_code.co_name
