@@ -1,3 +1,6 @@
+# Extracts the output of TimeLogger from the final output from running benchmark scripts on SLURM and writes the extracted information to a file
+# Usage: python write_time_logger_messages.py <file_path_to_the_output_from_slurm> <file_path_to_the_output_from_this_script>
+
 import sys
 import re
 
