@@ -55,6 +55,9 @@ from numpy.random import RandomState as rng
 import tensorflow as tf
 import tensorflow.contrib.keras as tfk
 
+sys.path.append("../..")
+
+from utility_classes.time_logger import TimeLogger as logger
 
 # # General Functions
 
@@ -71,6 +74,12 @@ class DataSet(object):
     
     
     def load_next_file(self):
+        load_file_time_logger = logger(self._taskid, "Load File")
+        load_file_time_logger.start_timer()
+
+        file_access_time_logger = logger(self._taskid, "HDF5 File Access")
+        file_access_time_logger.start_timer()
+
         #only load a new file if there are more than one file in the list:
         if self._num_files > 1 or not self._initialized:
             try:
@@ -95,7 +104,9 @@ class DataSet(object):
                     f.close()
             except EnvironmentError:
                 raise EnvironmentError("Cannot open file "+self._filelist[self._file_index])
-                
+
+            file_access_time_logger.end_timer()
+
             #sanity checks
             assert self._images.shape[0] == self._labels.shape[0], ('images.shape: %s labels.shape: %s' % (self._images.shape, self_.labels.shape))
             assert self._labels.shape[0] == self._normweights.shape[0], ('labels.shape: %s normweights.shape: %s' % (self._labels.shape, self._normweights.shape))
@@ -125,8 +136,10 @@ class DataSet(object):
         self._normweights = self._normweights[perm]
         self._weights = self._weights[perm]
         self._psr = self._psr[perm]
-        
-    
+
+        load_file_time_logger.end_timer()
+
+
     def __init__(self, filelist,num_tasks=1,taskid=0,split_filelist=False,split_file=False,data_format="NCHW"):
         """Construct DataSet"""
         #multinode stuff
@@ -165,6 +178,9 @@ class DataSet(object):
         return self._epochs_completed
 
     def next_batch(self, batch_size):
+        next_batch_time_logger = logger(self._taskid, "Call to Next Batch")
+        next_batch_time_logger.start_timer()
+
         """Return the next `batch_size` examples from this data set."""
         start = self._data_index
         self._data_index += batch_size
@@ -204,7 +220,9 @@ class DataSet(object):
             normweights = np.concatenate([normweights,tmpnormweights],axis=0)
             weights = np.concatenate([weights,tmpweights],axis=0)
             psr = np.concatenate([psr,tmppsr],axis=0)
-        
+
+        next_batch_time_logger.end_timer()
+
         return images, labels, normweights, weights, psr
 
 
@@ -227,6 +245,9 @@ class DummySet(object):
         self.reset()
         
     def next_batch(self, batch_size):
+        dummy_set_next_batch_time_logger = logger(-1, "Dummy DataSet Next Batch")
+        dummy_set_next_batch_time_logger.start_timer()
+
         data = np.reshape(self._random.rand(self._datasize*batch_size), [batch_size]+self._shape)
         labels = np.expand_dims(self._random.random_integers(0, 1, batch_size),1)
         normweights = np.expand_dims(self._random.rand(batch_size),1)
@@ -238,7 +259,8 @@ class DummySet(object):
         if self._data_index >= self._samples_per_epoch:
             self._data_index = 0
             self._epochs_completed += 1
-        
+
+        dummy_set_next_batch_time_logger.end_timer()
         return data, labels, normweights, weights, psr
 
 
@@ -247,7 +269,8 @@ class DummySet(object):
 # In[4]:
 
 def build_cnn_model(args):
-    
+    build_cnn_model_time_logger = logger(int(args['task_index']), "Build CNN Model")
+    build_cnn_model_time_logger.start_timer()
     #datatype
     dtype=args["precision"]
     
@@ -473,7 +496,7 @@ def build_cnn_model(args):
         #add softmax
         #with tf.device(device):
         network.append(tf.nn.softmax(network[-1]))
-    
+    build_cnn_model_time_logger.end_timer()
     #return the network and variables
     return variables,network
 
@@ -484,7 +507,8 @@ def build_cnn_model(args):
 
 #build the functions
 def build_functions(args,variables,network):
-    
+    build_functions_time_logger = logger(int(args['task_index']), "Build Functions")
+    build_functions_time_logger.start_timer()
     with args['graph'].as_default():
     
         #additional variables
@@ -513,7 +537,7 @@ def build_functions(args,variables,network):
                              num_thresholds=5000,
                              curve='ROC',
                              name='AUC')
-    
+
+    build_functions_time_logger.end_timer()
     #return functions
     return variables, prediction, loss, accuracy, auc
-
