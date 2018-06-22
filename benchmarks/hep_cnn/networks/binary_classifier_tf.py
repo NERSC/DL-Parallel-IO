@@ -55,6 +55,8 @@ from numpy.random import RandomState as rng
 import tensorflow as tf
 import tensorflow.contrib.keras as tfk
 
+import sys
+
 sys.path.append("../..")
 
 from utility_classes.time_logger import TimeLogger as logger
