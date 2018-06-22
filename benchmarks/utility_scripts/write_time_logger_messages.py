@@ -7,8 +7,8 @@ import re
 
 input_file_path = sys.argv[1]
 output_file_path = sys.argv[2]
-time_logger_output_regex = re.compile(r'\'TIME LOGGER OUTPUT.*For Excel:.*\'')
-for_excel_regex = re.compile(r'For Excel:.*\'')
+time_logger_output_regex = re.compile(r'\'TIME LOGGER OUTPUT.*For Excel:[^\']+\'')
+for_excel_regex = re.compile(r'For Excel:[^\']+\'')
 
 input_file = open(input_file_path, "r")
 output_file = open(output_file_path, "w")
