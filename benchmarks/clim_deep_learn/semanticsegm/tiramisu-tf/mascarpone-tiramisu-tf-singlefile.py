@@ -1,3 +1,9 @@
+import sys
+
+sys.path.append("../../..")
+
+from utility_classes.time_logger import TimeLogger as logger
+
 import tensorflow as tf
 import tensorflow.contrib.keras as tfk
 from tensorflow.python.ops import array_ops
@@ -46,7 +52,7 @@ image_height =  768
 image_width = 1152
 
 
-def conv(x, nf, sz, wd, stride=1): 
+def conv(x, nf, sz, wd, stride=1):
     return tf.layers.conv2d(inputs=x, filters=nf, kernel_size=sz, strides=(stride,stride),
                             padding='same', data_format='channels_first',
                             kernel_initializer= tfk.initializers.he_uniform(),
@@ -145,7 +151,9 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
 
 def create_tiramisu(nb_classes, img_input, height, width, nc, loss_weights, nb_dense_block=6, 
                     growth_rate=16, nb_filter=48, nb_layers_per_block=5, p=None, wd=0., training=True, batchnorm=False, dtype=tf.float16, filter_sz=3):
-    
+    create_tiramisu_timer_logger = logger(-1, "Create Tiramisu")
+    create_tiramisu_timer_logger.start_timer()
+
     if type(nb_layers_per_block) is list or type(nb_layers_per_block) is tuple:
         nb_layers = list(nb_layers_per_block)
     else: nb_layers = [nb_layers_per_block] * nb_dense_block
@@ -172,11 +180,15 @@ def create_tiramisu(nb_classes, img_input, height, width, nc, loss_weights, nb_d
         #x = tf.reshape(x,[-1,nb_classes,image_height,image_width]) #nb_classes was last before
         x = tf.transpose(x,[0,2,3,1]) #necessary because sparse softmax cross entropy does softmax over last axis
 
+    create_tiramisu_timer_logger.end_timer()
     return x, tf.nn.softmax(x)
 
 
 
 def create_dataset(h5ir, datafilelist, batchsize, num_epochs, comm_size, comm_rank, dtype, shuffle=False):
+    create_dataset_timer_logger = logger(comm_rank, "Create Dataset")
+    create_dataset_timer_logger.start_timer()
+
     if comm_size > 1:
         # use an equal number of files per shard, leaving out any leftovers
         per_shard = len(datafilelist) // comm_size
@@ -193,7 +205,9 @@ def create_dataset(h5ir, datafilelist, batchsize, num_epochs, comm_size, comm_ra
     # make sure all batches are equal in size
     dataset = dataset.apply(tf.contrib.data.batch_and_drop_remainder(batchsize))
     dataset = dataset.repeat(num_epochs)
-    
+
+    create_dataset_timer_logger.end_timer()
+
     return dataset
 
 
@@ -211,15 +225,22 @@ colormap = np.array([[[  0,  0,  0],  #   0      0     black
 
 #main function
 def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth):
+    global_time_logger = logger(-1, "Global Total Time")
+    global_time_logger.start_timer()
+
     #init horovod
+
+    initialization_timer_logger = logger(-1, "Initialize Horovod")
+    initialization_timer_logger.start_timer()
+
     nvtx.RangePush("init horovod", 1)
-    comm_rank = 0 
+    comm_rank = 0
     comm_local_rank = 0
     comm_size = 1
     comm_local_size = 1
     if horovod:
         hvd.init()
-        comm_rank = hvd.rank() 
+        comm_rank = hvd.rank()
         comm_local_rank = hvd.local_rank()
         comm_size = hvd.size()
         #not all horovod versions have that implemented
@@ -230,20 +251,33 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         if comm_rank == 0:
             print("Using distributed computation with Horovod: {} total ranks".format(comm_size,comm_rank))
     nvtx.RangePop() # init horovod
-        
+
+    initialization_timer_logger.set_rank(comm_rank)
+    initialization_timer_logger.end_timer()
+
+    global_time_logger.set_rank(int(comm_rank))
+
     #parameters
     channels = [0,1,2,10]
     per_rank_output = False
     loss_print_interval = 1
     
     #session config
+
+    initialization_timer_logger.start_timer(comm_rank, "Configure Session")
+
     sess_config=tf.ConfigProto(inter_op_parallelism_threads=6, #1
                                intra_op_parallelism_threads=1, #6
                                log_device_placement=False,
                                allow_soft_placement=True)
     sess_config.gpu_options.visible_device_list = str(comm_local_rank)
-    
+
+    initialization_timer_logger.end_timer()
+
     #get data
+
+    initialization_timer_logger.start_timer(comm_rank, "Get Data")
+
     training_graph = tf.Graph()
     if comm_rank == 0:
         print("Loading data...")
@@ -251,6 +285,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
     if comm_rank == 0:    
         print("Shape of trn_data is {}".format(trn_data.shape[0]))
         print("done.")
+
+    initialization_timer_logger.end_timer()
 
     #print some stats
     if comm_rank==0:
@@ -271,6 +307,9 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         print("Optimizer type: {}".format(opt_type))
         print("Num training samples: {}".format(trn_data.shape[0]))
         print("Num validation samples: {}".format(val_data.shape[0]))
+
+    io_training_time_logger = logger(comm_rank, "IO and Training")
+    io_training_time_logger.start_timer()
 
     with training_graph.as_default():
         nvtx.RangePush("TF Init", 3)
@@ -517,8 +556,13 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             nvtx.RangePop() # Epoch
             nvtx.RangePop() # Training Loop
 
+    io_training_time_logger.end_timer()
+    global_time_logger.end_timer()
 
 if __name__ == '__main__':
+    argparse_timer_logger = logger(-1, "Parse Arguments")
+    argparse_timer_logger.start_timer()
+
     AP = argparse.ArgumentParser()
     AP.add_argument("--lr",default=1e-4,type=float,help="Learning rate")
     AP.add_argument("--blocks",default=[3,3,4,4,7,7,10],type=int,nargs="*",help="Number of layers per block")
@@ -545,6 +589,8 @@ if __name__ == '__main__':
 
     # convert name of datatype into TF type object
     dtype=getattr(tf, parsed.dtype)
+
+    argparse_timer_logger.end_timer()
 
     #invoke main function
     main(input_path=parsed.datadir,blocks=parsed.blocks,weights=weights,image_dir=parsed.output,checkpoint_dir=parsed.chkpt_dir, trn_sz=parsed.trn_sz, learning_rate=parsed.lr, loss_type=parsed.loss, fs_type=parsed.fs, opt_type=parsed.optimizer, num_epochs=parsed.epochs, batch=parsed.batch, batchnorm=parsed.use_batchnorm, dtype=dtype, chkpt=parsed.chkpt, filter_sz=parsed.filter_sz, growth=parsed.growth)

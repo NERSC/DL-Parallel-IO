@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH -q debug
+#SBATCH -q regular
 #SBATCH -A dasrepo
 #SBATCH -C knl
-#SBATCH -t 00:30:00
+#SBATCH -t 01:00:00
 #SBATCH -J mascarpone_climsegment_horovod
 #SBATCH -N 32
-#SBATCH -o otuput_mascarpone_climsegment_horovod_run_cori_knl_20180617_nodes_32_attempt_1
+#SBATCH -o output_mascarpone_climsegment_horovod_run_cori_knl_20180625_nodes_32_attempt_2
 #SBATCH --mail-type ALL
 #SBATCH --mail-user ftc@lbl.gov
 
@@ -30,13 +30,13 @@ export PYTHONPATH=${modulebase}/lib/python2.7/site-packages:${PYTHONPATH}
 WORK=/project/projectdirs/dasrepo
 
 #set up run directory
-run_dir=${WORK}/gb2018/tiramisu/runs/cori/run_j${SLURM_JOBID}
-mkdir -p ${run_dir}
-cp ../tiramisu-tf/mascarpone-tiramisu-tf*.py ${run_dir}/
-cp ../tiramisu-tf/tiramisu_helpers.py ${run_dir}/
+#run_dir=${WORK}/gb2018/tiramisu/runs/cori/run_j${SLURM_JOBID}
+#mkdir -p ${run_dir}
+#cp ../tiramisu-tf/mascarpone-tiramisu-tf*.py ${run_dir}/
+#cp ../tiramisu-tf/tiramisu_helpers.py ${run_dir}/
 
 #step in
-cd ${run_dir}
+#cd ${run_dir}
 
 #other directories
 datadir=${WORK}/gb2018/tiramisu/segm_h5_v3_reformat
@@ -48,4 +48,4 @@ datadir=${WORK}/gb2018/tiramisu/segm_h5_v3_reformat
 #export DARSHAN_LOGFILE=darshan.log
 
 #run the training
-srun -N ${SLURM_NNODES} -n ${SLURM_NNODES} -c 272 -u python -u mascarpone-tiramisu-tf-singlefile.py --blocks 3 3 4 4 7 7 10 --loss weighted --lr 1e-5 --datadir ${datadir} --fs global
+srun -N ${SLURM_NNODES} -n ${SLURM_NNODES} -c 272 -u python -u ../tiramisu-tf/mascarpone-tiramisu-tf-singlefile.py --blocks 3 3 4 4 7 7 10 --loss weighted --lr 1e-5 --datadir ${datadir} --fs global

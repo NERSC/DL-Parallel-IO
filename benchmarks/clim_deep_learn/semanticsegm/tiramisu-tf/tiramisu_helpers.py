@@ -8,6 +8,12 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import linalg_ops
 import multiprocessing
 
+import sys
+
+sys.path.append("../../..")
+
+from utility_classes.time_logger import TimeLogger as logger
+
 #horovod, yes or no?
 horovod=True
 try:
@@ -116,6 +122,11 @@ def get_larc_optimizer(opt_type, loss, global_step, learning_rate, momentum=0., 
 #  class methods
 def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, update_on_read, dtype):
     #begin_time = time.time()
+
+    # need to send the comm_rank here
+    image_reader_timer_logger = logger(-1, "Time to Read Single Image")
+    image_reader_timer_logger.start_timer()
+
     with h5.File(path, "r", driver="core", backing_store=False, libver="latest") as f:
         #get min and max values and update stored values
         if update_on_read:
@@ -149,6 +160,9 @@ def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, updat
     #time
     #end_time = time.time()
     #print "Time to read image %.3f s" % (end_time-begin_time)
+
+    image_reader_timer_logger.end_timer()
+
     return data, label, weights, minvals, maxvals
 
 #input reader class
@@ -171,6 +185,9 @@ class h5_input_reader(object):
     pool = multiprocessing.Pool(processes=4)
     
     def read(self, datafile):
+        read_image_timer_logger = logger(-1, "Parallel Read Images with 4 Threads")
+        read_image_timer_logger.start_timer()
+
         path = self.path+'/'+datafile
         #begin_time = time.time()
         #nvtx.RangePush('h5_input', 8)
@@ -181,10 +198,14 @@ class h5_input_reader(object):
         #nvtx.RangePop()
         #end_time = time.time()
         #print "Time to read %s = %.3f s" % (path, end_time-begin_time)
+
+        read_image_timer_logger.end_timer()
         return data, label, weights
 
     def sequential_read(self, datafile):
-        
+        read_image_timer_logger = logger(-1, "Sequential Read Images")
+        read_image_timer_logger.start_timer()
+
         #data
         #begin_time = time.time()
         with h5.File(self.path+'/'+datafile, "r", driver="core", backing_store=False, libver="latest") as f:
@@ -210,11 +231,16 @@ class h5_input_reader(object):
         #end_time = time.time()
         #print "Time to read image %.3f s" % (end_time-begin_time)
 
+        read_image_timer_logger.end_timer()
+
         return data, label, weights
 
 
 #load data routine
 def load_data(input_path, max_files):
+    load_data_timer_logger = logger(-1, "Load Data")
+    load_data_timer_logger.start_timer()
+
     #look for labels and data files
     files = sorted([x for x in os.listdir(input_path) if x.startswith("data")])
 
@@ -236,11 +262,16 @@ def load_data(input_path, max_files):
     tst_data = files[int(0.8 * size):int(0.9 * size)]
     val_data = files[int(0.9 * size):]
 
+    load_data_timer_logger.end_timer()
+
     return trn_data, val_data, tst_data
 
 
 #load model wrapper
 def load_model(sess, saver, checkpoint_dir):
+    load_model_timer_logger = logger(-1, "Load Model")
+    load_model_timer_logger.start_timer()
+
     print("Looking for model in {}".format(checkpoint_dir))
     #get list of checkpoints
     checkpoints = [x.replace(".index","") for x in os.listdir(checkpoint_dir) if x.startswith("model.ckpt") and x.endswith(".index")]
@@ -252,3 +283,5 @@ def load_model(sess, saver, checkpoint_dir):
         print("Model restoration successful.")
     except:
         print("Loading model failed, starting fresh.")
+
+    load_model_timer_logger.end_timer()
