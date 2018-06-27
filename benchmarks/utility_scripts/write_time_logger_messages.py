@@ -13,7 +13,7 @@ for_excel_regex = re.compile(r'For Excel:[^\']+\'')
 input_file = open(input_file_path, "r")
 output_file = open(output_file_path, "w")
 output_file_csv = open(output_file_path+".csv", "w")
-print >> output_file_csv, "Rank, Action Name, Action Description, Start Time, End Time, Time Taken"
+print >> output_file_csv, "Epoch, Rank, Action Name, Action Description, Start Time, End Time, Time Taken"
 
 for line in input_file:
     time_logger_outputs = time_logger_output_regex.findall(line)

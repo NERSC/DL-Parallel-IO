@@ -177,7 +177,9 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
     
     #do training
     while not sess.should_stop():
-        
+        train_iteration_logger = logger(int(args['task_index']), "Training Iteration", epochs_completed)
+        train_iteration_logger.start_timer()
+
         #increment total batch counter
         total_batches+=1
         
@@ -283,6 +285,9 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
             print(time.time(),"COMPLETED epoch %d, average validation accu %g"%(epochs_completed, validation_accuracy))
             validation_auc = sess.run(auc_fn[0])
             print(time.time(),"COMPLETED epoch %d, average validation auc %g"%(epochs_completed, validation_auc))
+
+        train_iteration_logger.end_timer()
+
     train_loop_logger.end_timer()
 
 global_time_logger = logger(-1, "Global Total Time")
@@ -431,8 +436,8 @@ if not metafilelist:
 
 initialization_time_logger.end_timer()
 
-io_training_time_logger = logger(int(args['task_index']), "IO and Training")
-io_training_time_logger.start_timer()
+complete_training_time_logger = logger(int(args['task_index']), "Initialization and Training Loop")
+complete_training_time_logger.start_timer()
 
 #initialize session
 if (args['node_type'] == 'worker'):
@@ -495,7 +500,7 @@ if (args['node_type'] == 'worker'):
                 total_time -= time.time()
                 print("FINISHED Training. Total time %g"%(total_time))
 
-io_training_time_logger.end_timer()
+complete_training_time_logger.end_timer()
 
 global_time_logger.set_rank(int(args['task_index']))
 global_time_logger.end_timer()

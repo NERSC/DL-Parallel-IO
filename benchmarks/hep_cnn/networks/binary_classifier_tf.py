@@ -76,10 +76,10 @@ class DataSet(object):
     
     
     def load_next_file(self):
-        load_file_time_logger = logger(self._taskid, "Load File")
+        load_file_time_logger = logger(self._taskid, "Load File", self._epochs_completed)
         load_file_time_logger.start_timer()
 
-        file_access_time_logger = logger(self._taskid, "HDF5 File Access")
+        file_access_time_logger = logger(self._taskid, "HDF5 File Read", self._epochs_completed)
         file_access_time_logger.start_timer()
 
         #only load a new file if there are more than one file in the list:
@@ -180,7 +180,7 @@ class DataSet(object):
         return self._epochs_completed
 
     def next_batch(self, batch_size):
-        next_batch_time_logger = logger(self._taskid, "Call to Next Batch")
+        next_batch_time_logger = logger(self._taskid, "Call to Next Batch", self._epochs_completed)
         next_batch_time_logger.start_timer()
 
         """Return the next `batch_size` examples from this data set."""

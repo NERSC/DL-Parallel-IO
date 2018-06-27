@@ -3,10 +3,10 @@
 #SBATCH -C knl
 #SBATCH -t 00:30:00
 #SBATCH -J hep_train_tf
-#SBATCH -o output_run_cori_knl_horvod_20180617_nodes_4_attempt_1
+#SBATCH -o output_run_cori_knl_horvod_20180627_nodes_64_attempt_1
 #SBATCH --mail-type ALL
 #SBATCH --mail-user ftc@lbl.gov
-#SBATCH -N 4
+#SBATCH -N 64
 
 #*** License Agreement ***
 #

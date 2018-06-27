@@ -3,19 +3,22 @@ import time
 
 
 class TimeLogger:
-    def __init__(self, rank, action_description):
+    def __init__(self, rank, action_description, epoch_num=-1):
         # Initialize members
         self.start_time = 0
         self.end_time = 0
         self.rank = rank
         self.action_name = ""
         self.action_description = action_description
+        self.epoch_num = epoch_num
 
     def set_rank(self, rank):
         self.rank = rank
 
     def set_action_description(self, action_description):
         self.action_description = action_description
+
+    def set_epoch_num(self, epoch_num):
 
     def start_timer(self, rank=-1, action_description=""):
         if rank != -1:
@@ -36,9 +39,9 @@ class TimeLogger:
         time_taken = self.end_time - self.start_time
         if time_taken < 0:
             print("TIME LOGGER OUTPUT", "ERROR", "End time is less than start time")
-        print("TIME LOGGER OUTPUT", "Rank %d"%(self.rank), self.action_name, self.action_description,
+        print("TIME LOGGER OUTPUT", "Epoch: "%(self.epoch_num), "Rank: %d"%(self.rank), self.action_name, self.action_description,
               "Start Time: %g"%(self.start_time), "End Time: %g"%(self.end_time), "Time Taken: %g"%(time_taken),
-              "For Excel:{}, {}, {}, {}, {}, {}".format(self.rank, self.action_name, self.action_description,
+              "For Excel:{}, {}, {}, {}, {}, {}, {}".format(self.epoch_num, self.rank, self.action_name, self.action_description,
                                                          self.start_time, self.end_time, time_taken))
 
     def get_caller_name(self):
