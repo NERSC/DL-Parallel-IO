@@ -19,6 +19,7 @@ class TimeLogger:
         self.action_description = action_description
 
     def set_epoch_num(self, epoch_num):
+        self.epoch_num = epoch_num
 
     def start_timer(self, rank=-1, action_description=""):
         if rank != -1:
