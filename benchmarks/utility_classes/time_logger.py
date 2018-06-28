@@ -40,7 +40,7 @@ class TimeLogger:
         time_taken = self.end_time - self.start_time
         if time_taken < 0:
             print("TIME LOGGER OUTPUT", "ERROR", "End time is less than start time")
-        print("TIME LOGGER OUTPUT", "Epoch: "%(self.epoch_num), "Rank: %d"%(self.rank), self.action_name, self.action_description,
+        print("TIME LOGGER OUTPUT", "Epoch: %d"%(self.epoch_num), "Rank: %d"%(self.rank), self.action_name, self.action_description,
               "Start Time: %g"%(self.start_time), "End Time: %g"%(self.end_time), "Time Taken: %g"%(time_taken),
               "For Excel:{}, {}, {}, {}, {}, {}, {}".format(self.epoch_num, self.rank, self.action_name, self.action_description,
                                                          self.start_time, self.end_time, time_taken))
