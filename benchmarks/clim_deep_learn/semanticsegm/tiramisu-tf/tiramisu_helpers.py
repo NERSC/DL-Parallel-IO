@@ -124,7 +124,7 @@ def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, updat
     #begin_time = time.time()
 
     # need to send the comm_rank here
-    image_reader_timer_logger = logger(-1, "Time to Read Single Image")
+    image_reader_timer_logger = logger(-1, "Time to Read Single Image", -1, True)
     image_reader_timer_logger.start_timer()
 
     with h5.File(path, "r", driver="core", backing_store=False, libver="latest") as f:
@@ -185,7 +185,7 @@ class h5_input_reader(object):
     pool = multiprocessing.Pool(processes=4)
     
     def read(self, datafile):
-        read_image_timer_logger = logger(-1, "Parallel Read Images with 4 Threads")
+        read_image_timer_logger = logger(-1, "Parallel Read Images with 4 Threads", -1, True)
         read_image_timer_logger.start_timer()
 
         path = self.path+'/'+datafile
@@ -203,7 +203,7 @@ class h5_input_reader(object):
         return data, label, weights
 
     def sequential_read(self, datafile):
-        read_image_timer_logger = logger(-1, "Sequential Read Images")
+        read_image_timer_logger = logger(-1, "Sequential Read Images", -1, True)
         read_image_timer_logger.start_timer()
 
         #data
@@ -238,7 +238,7 @@ class h5_input_reader(object):
 
 #load data routine
 def load_data(input_path, max_files):
-    load_data_timer_logger = logger(-1, "Load Data")
+    load_data_timer_logger = logger(-1, "Load Data", -1, True)
     load_data_timer_logger.start_timer()
 
     #look for labels and data files
@@ -269,7 +269,7 @@ def load_data(input_path, max_files):
 
 #load model wrapper
 def load_model(sess, saver, checkpoint_dir):
-    load_model_timer_logger = logger(-1, "Load Model")
+    load_model_timer_logger = logger(-1, "Load Model", -1, True)
     load_model_timer_logger.start_timer()
 
     print("Looking for model in {}".format(checkpoint_dir))

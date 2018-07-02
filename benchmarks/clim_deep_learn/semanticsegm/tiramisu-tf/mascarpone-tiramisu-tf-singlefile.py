@@ -151,7 +151,7 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
 
 def create_tiramisu(nb_classes, img_input, height, width, nc, loss_weights, nb_dense_block=6, 
                     growth_rate=16, nb_filter=48, nb_layers_per_block=5, p=None, wd=0., training=True, batchnorm=False, dtype=tf.float16, filter_sz=3):
-    create_tiramisu_timer_logger = logger(-1, "Create Tiramisu")
+    create_tiramisu_timer_logger = logger(-1, "Create Tiramisu", -1, True)
     create_tiramisu_timer_logger.start_timer()
 
     if type(nb_layers_per_block) is list or type(nb_layers_per_block) is tuple:
@@ -186,7 +186,7 @@ def create_tiramisu(nb_classes, img_input, height, width, nc, loss_weights, nb_d
 
 
 def create_dataset(h5ir, datafilelist, batchsize, num_epochs, comm_size, comm_rank, dtype, shuffle=False):
-    create_dataset_timer_logger = logger(comm_rank, "Create Dataset")
+    create_dataset_timer_logger = logger(comm_rank, "Create Dataset", -1, True)
     create_dataset_timer_logger.start_timer()
 
     if comm_size > 1:
@@ -225,12 +225,12 @@ colormap = np.array([[[  0,  0,  0],  #   0      0     black
 
 #main function
 def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth):
-    global_time_logger = logger(-1, "Global Total Time")
+    global_time_logger = logger(-1, "Global Total Time", -1, True)
     global_time_logger.start_timer()
 
     #init horovod
 
-    initialization_timer_logger = logger(-1, "Initialize Horovod")
+    initialization_timer_logger = logger(-1, "Initialize Horovod", -1, True)
     initialization_timer_logger.start_timer()
 
     nvtx.RangePush("init horovod", 1)
@@ -308,7 +308,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         print("Num training samples: {}".format(trn_data.shape[0]))
         print("Num validation samples: {}".format(val_data.shape[0]))
 
-    io_training_time_logger = logger(comm_rank, "IO and Training")
+    io_training_time_logger = logger(comm_rank, "IO and Training", -1, True)
     io_training_time_logger.start_timer()
 
     with training_graph.as_default():
@@ -560,7 +560,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
     global_time_logger.end_timer()
 
 if __name__ == '__main__':
-    argparse_timer_logger = logger(-1, "Parse Arguments")
+    argparse_timer_logger = logger(-1, "Parse Arguments", -1, True)
     argparse_timer_logger.start_timer()
 
     AP = argparse.ArgumentParser()
