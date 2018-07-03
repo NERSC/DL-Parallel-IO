@@ -150,8 +150,8 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
 
 
 def create_tiramisu(nb_classes, img_input, height, width, nc, loss_weights, nb_dense_block=6, 
-                    growth_rate=16, nb_filter=48, nb_layers_per_block=5, p=None, wd=0., training=True, batchnorm=False, dtype=tf.float16, filter_sz=3):
-    create_tiramisu_timer_logger = logger(-1, "Create Tiramisu", -1, True)
+                    growth_rate=16, nb_filter=48, nb_layers_per_block=5, p=None, wd=0., training=True, batchnorm=False, dtype=tf.float16, filter_sz=3, comm_rank=-1):
+    create_tiramisu_timer_logger = logger(comm_rank, "Create Tiramisu", -1, True)
     create_tiramisu_timer_logger.start_timer()
 
     if type(nb_layers_per_block) is list or type(nb_layers_per_block) is tuple:
@@ -252,7 +252,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             print("Using distributed computation with Horovod: {} total ranks".format(comm_size,comm_rank))
     nvtx.RangePop() # init horovod
 
-    initialization_timer_logger.set_rank(comm_rank)
+    initialization_timer_logger.set_rank(int(comm_rank))
     initialization_timer_logger.end_timer()
 
     global_time_logger.set_rank(int(comm_rank))
@@ -281,7 +281,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
     training_graph = tf.Graph()
     if comm_rank == 0:
         print("Loading data...")
-    trn_data, val_data, tst_data = load_data(input_path, trn_sz)
+    trn_data, val_data, tst_data = load_data(input_path, trn_sz, comm_rank)
     if comm_rank == 0:    
         print("Shape of trn_data is {}".format(trn_data.shape[0]))
         print("done.")
@@ -314,8 +314,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
     with training_graph.as_default():
         nvtx.RangePush("TF Init", 3)
         #create readers
-        trn_reader = h5_input_reader(input_path, channels, weights, dtype, normalization_file="stats.h5", update_on_read=False)
-        val_reader = h5_input_reader(input_path, channels, weights, dtype, normalization_file="stats.h5", update_on_read=False)
+        trn_reader = h5_input_reader(input_path, channels, weights, dtype, normalization_file="stats.h5", update_on_read=False, comm_rank=comm_rank)
+        val_reader = h5_input_reader(input_path, channels, weights, dtype, normalization_file="stats.h5", update_on_read=False, comm_rank=comm_rank)
         #create datasets
         if fs_type == "local":
             trn_dataset = create_dataset(trn_reader, trn_data, batch, num_epochs, comm_local_size, comm_local_rank, dtype, shuffle=True)
@@ -344,7 +344,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         val_init_op = iterator.make_initializer(val_dataset)
 
         #set up model
-        logit, prediction = create_tiramisu(3, next_elem[0], image_height, image_width, len(channels), loss_weights=weights, nb_layers_per_block=blocks, p=0.2, wd=1e-4, dtype=dtype, batchnorm=batchnorm, growth_rate=growth, filter_sz=filter_sz)
+        logit, prediction = create_tiramisu(3, next_elem[0], image_height, image_width, len(channels), loss_weights=weights, nb_layers_per_block=blocks, p=0.2, wd=1e-4, dtype=dtype, batchnorm=batchnorm, growth_rate=growth, filter_sz=filter_sz, comm_rank=comm_rank)
         
         #set up loss
         labels_one_hot = tf.cast(tf.contrib.layers.one_hot_encoding(next_elem[1], 3), dtype=dtype)
@@ -439,7 +439,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             sess.run([init_op, init_local_op])
             #restore from checkpoint:
             if comm_rank == 0:
-                load_model(sess, checkpoint_saver, checkpoint_dir)
+                load_model(sess, checkpoint_saver, checkpoint_dir, comm_rank)
             #broadcast loaded model variables
             sess.run(init_bcast)
             #create iterator handles
@@ -457,10 +457,16 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             nvtx.RangePush("Training Loop", 4)
             nvtx.RangePush("Epoch", epoch)
             start_time = time.time()
+
+            training_loop_timer_logger = logger(comm_rank, "Training Loop", -1, True)
+            training_loop_timer_logger.start_timer()
+
             while not sess.should_stop():
-                
                 #training loop
                 try:
+                    training_iteraion_time_logger = logger(comm_rank, "Training Iteration", epoch, True)
+                    training_iteraion_time_logger.start_timer()
+
                     nvtx.RangePush("Step", step)
                     #construct feed dict
                     _, train_steps, tmp_loss = sess.run([train_op,
@@ -549,12 +555,17 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
 
                         nvtx.RangePop() # Epoch
                         nvtx.RangePush("Epoch", epoch)
-                    
+
+                        training_iteraion_time_logger.end_timer()
+
                 except tf.errors.OutOfRangeError:
                     break
 
             nvtx.RangePop() # Epoch
             nvtx.RangePop() # Training Loop
+
+            training_loop_timer_logger.end_timer()
+
 
     io_training_time_logger.end_timer()
     global_time_logger.end_timer()

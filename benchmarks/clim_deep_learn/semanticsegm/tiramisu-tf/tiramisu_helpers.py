@@ -120,11 +120,11 @@ def get_larc_optimizer(opt_type, loss, global_step, learning_rate, momentum=0., 
 
 # defined outside of the h5_input_reader class due to weirdness with pickling
 #  class methods
-def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, update_on_read, dtype):
+def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, update_on_read, dtype, comm_rank=-1):
     #begin_time = time.time()
 
     # need to send the comm_rank here
-    image_reader_timer_logger = logger(-1, "Time to Read Single Image", -1, True)
+    image_reader_timer_logger = logger(comm_rank, "Time to Read Single Image", -1, True)
     image_reader_timer_logger.start_timer()
 
     with h5.File(path, "r", driver="core", backing_store=False, libver="latest") as f:
@@ -168,7 +168,7 @@ def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, updat
 #input reader class
 class h5_input_reader(object):
     
-    def __init__(self, path, channels, weights, dtype, normalization_file=None, update_on_read=False):
+    def __init__(self, path, channels, weights, dtype, normalization_file=None, update_on_read=False, comm_rank=-1):
         self.path = path
         self.channels = channels
         self.update_on_read = update_on_read
@@ -182,16 +182,18 @@ class h5_input_reader(object):
             self.minvals = np.asarray([np.inf]*len(channels), dtype=self.dtype)
             self.maxvals = np.asarray([-np.inf]*len(channels), dtype=self.dtype)
 
+        self.comm_rank = comm_rank
+
     pool = multiprocessing.Pool(processes=4)
     
     def read(self, datafile):
-        read_image_timer_logger = logger(-1, "Parallel Read Images with 4 Threads", -1, True)
+        read_image_timer_logger = logger(self.comm_rank, "Parallel Read Images with 4 Threads", -1, True)
         read_image_timer_logger.start_timer()
 
         path = self.path+'/'+datafile
         #begin_time = time.time()
         #nvtx.RangePush('h5_input', 8)
-        data, label, weights, new_minvals, new_maxvals = self.pool.apply(_h5_input_subprocess_reader, (path, self.channels, self.weights, self.minvals, self.maxvals, self.update_on_read, self.dtype))
+        data, label, weights, new_minvals, new_maxvals = self.pool.apply(_h5_input_subprocess_reader, (path, self.channels, self.weights, self.minvals, self.maxvals, self.update_on_read, self.dtype, self.comm_rank))
         if self.update_on_read:
             self.minvals = np.minimum(self.minvals, new_minvals)
             self.maxvals = np.maximum(self.maxvals, new_maxvals)
@@ -203,7 +205,7 @@ class h5_input_reader(object):
         return data, label, weights
 
     def sequential_read(self, datafile):
-        read_image_timer_logger = logger(-1, "Sequential Read Images", -1, True)
+        read_image_timer_logger = logger(self.comm_rank, "Sequential Read Images", -1, True)
         read_image_timer_logger.start_timer()
 
         #data
@@ -237,8 +239,8 @@ class h5_input_reader(object):
 
 
 #load data routine
-def load_data(input_path, max_files):
-    load_data_timer_logger = logger(-1, "Load Data", -1, True)
+def load_data(input_path, max_files, comm_rank=-1):
+    load_data_timer_logger = logger(comm_rank, "Load Data", -1, True)
     load_data_timer_logger.start_timer()
 
     #look for labels and data files
@@ -268,8 +270,8 @@ def load_data(input_path, max_files):
 
 
 #load model wrapper
-def load_model(sess, saver, checkpoint_dir):
-    load_model_timer_logger = logger(-1, "Load Model", -1, True)
+def load_model(sess, saver, checkpoint_dir, comm_rank=-1):
+    load_model_timer_logger = logger(comm_rank, "Load Model", -1, True)
     load_model_timer_logger.start_timer()
 
     print("Looking for model in {}".format(checkpoint_dir))

@@ -13,11 +13,6 @@ class TimeLogger:
         self.epoch_num = epoch_num
         self.write_to_file = write_to_file
         self.file_ptr = 0
-        if self.write_to_file == True:
-            filename = str(self.rank)
-            if self.rank == -1:
-                filename = "all_ranks"
-            self.file_ptr = open("time_logger_output/" + filename, "a")
 
     def __del__(self):
         if self.write_to_file == True and self.file_ptr > 0:
@@ -60,6 +55,11 @@ class TimeLogger:
                                                          self.start_time, self.end_time, time_taken))
 
     def write_log(self):
+        filename = str(self.rank)
+        if self.rank == -1:
+            filename = "all_ranks"
+        self.file_ptr = open("time_logger_output/" + filename, "a")
+
         if self.file_ptr == 0:
             print("No log file created")
             return
