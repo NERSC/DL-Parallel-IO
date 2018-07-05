@@ -224,7 +224,7 @@ colormap = np.array([[[  0,  0,  0],  #   0      0     black
                      ])
 
 #main function
-def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth):
+def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth, disable_training):
     global_time_logger = logger(-1, "Global Total Time", -1, True)
     global_time_logger.start_timer()
 
@@ -461,7 +461,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             training_loop_timer_logger = logger(comm_rank, "Training Loop", -1, True)
             training_loop_timer_logger.start_timer()
 
-            while not sess.should_stop():
+            while not (sess.should_stop() or disable_training):
                 #training loop
                 try:
                     training_iteraion_time_logger = logger(comm_rank, "Training Iteration", epoch, True)
@@ -592,6 +592,7 @@ if __name__ == '__main__':
     AP.add_argument("--dtype",type=str,default="float32",choices=["float32","float16"],help="Data type for network")
     AP.add_argument("--filter-sz",type=int,default=3,help="Convolution filter size")
     AP.add_argument("--growth",type=int,default=16,help="Channel growth rate per layer")
+    AP.add_argument("--disable_training", help="Disable training for test purpose", action='store_true')
     parsed = AP.parse_args()
 
     #play with weighting
@@ -604,4 +605,4 @@ if __name__ == '__main__':
     argparse_timer_logger.end_timer()
 
     #invoke main function
-    main(input_path=parsed.datadir,blocks=parsed.blocks,weights=weights,image_dir=parsed.output,checkpoint_dir=parsed.chkpt_dir, trn_sz=parsed.trn_sz, learning_rate=parsed.lr, loss_type=parsed.loss, fs_type=parsed.fs, opt_type=parsed.optimizer, num_epochs=parsed.epochs, batch=parsed.batch, batchnorm=parsed.use_batchnorm, dtype=dtype, chkpt=parsed.chkpt, filter_sz=parsed.filter_sz, growth=parsed.growth)
+    main(input_path=parsed.datadir,blocks=parsed.blocks,weights=weights,image_dir=parsed.output,checkpoint_dir=parsed.chkpt_dir, trn_sz=parsed.trn_sz, learning_rate=parsed.lr, loss_type=parsed.loss, fs_type=parsed.fs, opt_type=parsed.optimizer, num_epochs=parsed.epochs, batch=parsed.batch, batchnorm=parsed.use_batchnorm, dtype=dtype, chkpt=parsed.chkpt, filter_sz=parsed.filter_sz, growth=parsed.growth, disable_training=parsed.disable_training)
