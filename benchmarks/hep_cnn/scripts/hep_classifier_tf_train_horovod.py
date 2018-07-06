@@ -97,6 +97,7 @@ def parse_arguments():
     parser.add_argument("--precision", type=str, default="fp32", help="specify the precision. supported are fp32 and fp16")
     parser.add_argument('--dummy_data', action='store_const', const=True, default=False, 
                         help='use dummy data instead of real data')
+    parser.add_argument("--disable_training", help="Disable training for test purpose", action='store_true')
     pargs = parser.parse_args()
     
     #load the json:
@@ -107,6 +108,7 @@ def parse_arguments():
     args['num_tasks'] = pargs.num_tasks
     args['num_ps'] = 0
     args['dummy_data'] = pargs.dummy_data
+    args['disable_training'] = pargs.disable_training
     
     #modify the activations
     if args['conv_params']['activation'] == 'ReLU':
@@ -154,7 +156,7 @@ def parse_arguments():
     return args
 
 
-def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
+def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,disable_training):
     train_loop_logger = logger(int(args["task_index"]), "Train Loop")
     train_loop_logger.start_timer()
 
@@ -192,21 +194,21 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
                     variables['labels_']: labels, 
                     variables['weights_']: normweights, 
                     variables['keep_prob_']: args['dropout_p']}
-                
-        #update weights
-        start_time = time.time()
-        if args['create_summary']:
-            _, gstep, summary, tmp_loss = sess.run([train_step, global_step, train_summary, loss_fn], feed_dict=feed_dict)
-        else:
-            _, gstep, tmp_loss = sess.run([train_step, global_step, loss_fn], feed_dict=feed_dict)
-        
-        #update kfac parameters
-        if optlist:
-            sess.run(optlist[0],feed_dict=feed_dict)
-            if gstep%args["kfac_inv_update_frequency"]==0:
-                sess.run(optlist[1],feed_dict=feed_dict)
-        
-        
+
+        if not disable_training:
+            #update weights
+            start_time = time.time()
+            if args['create_summary']:
+                _, gstep, summary, tmp_loss = sess.run([train_step, global_step, train_summary, loss_fn], feed_dict=feed_dict)
+            else:
+                _, gstep, tmp_loss = sess.run([train_step, global_step, loss_fn], feed_dict=feed_dict)
+
+            #update kfac parameters
+            if optlist:
+                sess.run(optlist[0],feed_dict=feed_dict)
+                if gstep%args["kfac_inv_update_frequency"]==0:
+                    sess.run(optlist[1],feed_dict=feed_dict)
+
         end_time = time.time()
         train_time += end_time-start_time
         
@@ -244,37 +246,38 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset):
                 #set weights to 1:
                 normweights[:] = 1.
                 weights[:] = 1.
-                
-                #compute loss
-                if args['create_summary']:
-                    summary, tmp_loss=sess.run([validation_summary,loss_fn],
-                                                feed_dict={variables['images_']: images, 
-                                                            variables['labels_']: labels, 
-                                                            variables['weights_']: normweights, 
-                                                            variables['keep_prob_']: 1.0})
-                else:
-                    tmp_loss=sess.run([loss_fn],
-                                    feed_dict={variables['images_']: images, 
-                                                variables['labels_']: labels, 
-                                                variables['weights_']: normweights, 
-                                                variables['keep_prob_']: 1.0})
-                
-                #add loss
-                validation_loss += tmp_loss[0]
-                validation_batches += 1
-                
-                #update accuracy
-                sess.run(accuracy_fn[1],feed_dict={variables['images_']: images, 
-                                                    variables['labels_']: labels, 
-                                                    variables['weights_']: normweights, 
+
+                if not disable_training:
+                    #compute loss
+                    if args['create_summary']:
+                        summary, tmp_loss=sess.run([validation_summary,loss_fn],
+                                                    feed_dict={variables['images_']: images,
+                                                                variables['labels_']: labels,
+                                                                variables['weights_']: normweights,
+                                                                variables['keep_prob_']: 1.0})
+                    else:
+                        tmp_loss=sess.run([loss_fn],
+                                        feed_dict={variables['images_']: images,
+                                                    variables['labels_']: labels,
+                                                    variables['weights_']: normweights,
                                                     variables['keep_prob_']: 1.0})
-                
-                #update auc
-                sess.run(auc_fn[1],feed_dict={variables['images_']: images, 
-                                              variables['labels_']: labels, 
-                                              variables['weights_']: normweights, 
-                                              variables['keep_prob_']: 1.0})
-                                
+
+                    #add loss
+                    validation_loss += tmp_loss[0]
+                    validation_batches += 1
+
+                    #update accuracy
+                    sess.run(accuracy_fn[1],feed_dict={variables['images_']: images,
+                                                        variables['labels_']: labels,
+                                                        variables['weights_']: normweights,
+                                                        variables['keep_prob_']: 1.0})
+
+                    #update auc
+                    sess.run(auc_fn[1],feed_dict={variables['images_']: images,
+                                                  variables['labels_']: labels,
+                                                  variables['weights_']: normweights,
+                                                  variables['keep_prob_']: 1.0})
+
                 #check if full pass done
                 if validationset._epochs_completed>0:
                     validationset.reset()
@@ -496,7 +499,7 @@ if (args['node_type'] == 'worker'):
         
                 #do the training loop
                 total_time = time.time()
-                train_loop(sess,train_step,global_step,optlist,args,trainset,validationset)
+                train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,bool(args['disable_training']))
                 total_time -= time.time()
                 print("FINISHED Training. Total time %g"%(total_time))
 
