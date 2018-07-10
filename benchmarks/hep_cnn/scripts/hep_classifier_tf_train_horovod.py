@@ -74,6 +74,7 @@ import slurm_tf_helper.setup_clusters as sc
 sys.path.append("../..")
 
 from utility_classes.time_logger import TimeLogger as logger
+from utility_classes.time_logger import TimeLoggerCheckpointSaverListener as checkpoint_listener
 
 #housekeeping
 import networks.binary_classifier_tf as bc
@@ -486,13 +487,16 @@ if (args['node_type'] == 'worker'):
         
             #saver class:
             model_saver = tf.train.Saver()
-        
-        
+
+            if hvd.rank() == 0:
+                listener = checkpoint_listener()
+                hooks.append(tf.train.CheckpointSaverHook(checkpoint_dir=args['modelpath'],
+                                                          save_secs=300,
+                                                          saver=model_saver,
+                                                          listeners=[listener]))
+
             print("Rank",args["task_index"],": starting training using "+args['optimizer']+" optimizer")
-            with tf.train.MonitoredTrainingSession(config=sess_config, 
-                                                   checkpoint_dir=(args['modelpath'] if hvd.rank() == 0 else None),
-                                                   save_checkpoint_secs=300,
-                                                   hooks=hooks) as sess:
+            with tf.train.MonitoredTrainingSession(config=sess_config, hooks=hooks) as sess:
     
                 #initialize variables
                 sess.run([init_global_op, init_local_op])

@@ -1,6 +1,8 @@
 import sys
 import time
 
+import tensorflow as tf
+
 
 class TimeLogger:
     def __init__(self, rank, action_description, epoch_num=-1, write_to_file=False):
@@ -76,3 +78,25 @@ class TimeLogger:
 
     def get_caller_name(self):
         return sys._getframe(2).f_code.co_name
+
+# Listener class for logging checkpointing events
+
+
+class TimeLoggerCheckpointSaverListener(tf.train.CheckpointSaverListener):
+    # TODO: Handle write to file later. For now, this is for HEP benchmark only
+    def begin(self):
+        self.session_logger = TimeLogger(-1, "Session Listener")
+        self.session_logger.start_timer()
+
+        self.checkpoint_logger = TimeLogger(0, "Checkpoint Listener")
+
+    # TODO: For now, considering global_step_value as the epoch number in TimeLogger. Need to fix later.
+    def before_save(self, session, global_step_value):
+        self.checkpoint_logger.set_epoch_num(global_step_value)
+        self.checkpoint_logger.start_timer()
+
+    def after_save(self, session, global_step_value):
+        self.checkpoint_logger.end_timer()
+
+    def end(self, session, global_step_value):
+        self.session_logger.end_timer()
