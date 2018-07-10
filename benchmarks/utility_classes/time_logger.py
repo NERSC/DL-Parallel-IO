@@ -83,12 +83,15 @@ class TimeLogger:
 
 
 class TimeLoggerCheckpointSaverListener(tf.train.CheckpointSaverListener):
-    # TODO: Handle write to file later. For now, this is for HEP benchmark only
+    def __init__(self, rank=-1, write_to_file=False):
+        self.rank = rank
+        self.write_to_file = write_to_file
+
     def begin(self):
-        self.session_logger = TimeLogger(-1, "Session Listener")
+        self.session_logger = TimeLogger(self.rank, "Session Listener", -1, self.write_to_file)
         self.session_logger.start_timer()
 
-        self.checkpoint_logger = TimeLogger(0, "Checkpoint Listener")
+        self.checkpoint_logger = TimeLogger(self.rank, "Checkpoint Listener", -1, self.write_to_file)
 
     # TODO: For now, considering global_step_value as the epoch number in TimeLogger. Need to fix later.
     def before_save(self, session, global_step_value):

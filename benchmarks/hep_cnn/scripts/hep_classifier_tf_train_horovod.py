@@ -489,7 +489,7 @@ if (args['node_type'] == 'worker'):
             model_saver = tf.train.Saver()
 
             if hvd.rank() == 0:
-                listener = checkpoint_listener()
+                listener = checkpoint_listener(hvd.rank(), False)
                 hooks.append(tf.train.CheckpointSaverHook(checkpoint_dir=args['modelpath'],
                                                           save_secs=300,
                                                           saver=model_saver,

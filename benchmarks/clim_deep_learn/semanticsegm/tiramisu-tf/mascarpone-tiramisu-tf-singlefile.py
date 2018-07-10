@@ -3,6 +3,7 @@ import sys
 sys.path.append("../../..")
 
 from utility_classes.time_logger import TimeLogger as logger
+from utility_classes.time_logger import TimeLoggerCheckpointSaverListener as checkpoint_listener
 
 import tensorflow as tf
 import tensorflow.contrib.keras as tfk
@@ -408,7 +409,9 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         if comm_rank == 0:
             checkpoint_save_freq = num_steps_per_epoch * 2
             checkpoint_saver = tf.train.Saver(max_to_keep = 1000)
-            hooks.append(tf.train.CheckpointSaverHook(checkpoint_dir=checkpoint_dir, save_steps=checkpoint_save_freq, saver=checkpoint_saver))
+            listener = checkpoint_listener(comm_rank, True)
+            hooks.append(tf.train.CheckpointSaverHook(checkpoint_dir=checkpoint_dir, save_steps=checkpoint_save_freq,
+                                                      saver=checkpoint_saver, listeners=[listener]))
             #create image dir if not exists
             if not os.path.isdir(image_dir):
                 os.makedirs(image_dir)
