@@ -27,7 +27,7 @@ export PYTHONPATH=${modulebase}/lib/python2.7/site-packages:${PYTHONPATH}
 #modulebase=$(dirname $(module show tensorflow/intel-head 2>&1 | grep PATH |awk '{print $3}'))
 #export PYTHONPATH=${modulebase}/lib/python2.7/site-packages:${PYTHONPATH}
 
-WORK=/project/projectdirs/dasrepo
+# WORK=/project/projectdirs/dasrepo
 
 #set up run directory
 #run_dir=${WORK}/gb2018/tiramisu/runs/cori/run_j${SLURM_JOBID}
@@ -39,7 +39,7 @@ WORK=/project/projectdirs/dasrepo
 #cd ${run_dir}
 
 #other directories
-datadir=${WORK}/gb2018/tiramisu/segm_h5_v3_reformat
+datadir=/global/cscratch1/sd/ftc/deep_learning_data/climate_deep_learn
 
 # Darshan does not function here
 #module load darshan

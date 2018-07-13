@@ -143,7 +143,8 @@ def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, updat
 
         # cast data if needed
         if data.dtype != dtype:
-            data = f['climate']['data'][channels,:,:].astype(dtype)
+            #data = f['climate']['data'][channels,:,:].astype(dtype)
+            data = data.astype(dtype)
 
         #do min/max normalization
         for c in range(len(channels)):
