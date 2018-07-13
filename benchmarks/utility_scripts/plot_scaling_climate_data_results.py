@@ -6,6 +6,38 @@ import matplotlib.pyplot as plt
 
 from pprint import pprint
 
+def merge_and_add_common_intervals(interval_list_per_epoch):
+    merged_interval_list = []
+    for interval_list_per_epoch_per_call in interval_list_per_epoch:
+        if len(merged_interval_list) == 0:
+            merged_interval_list.append(interval_list_per_epoch_per_call)
+        else:
+            start1 = merged_interval_list[len(merged_interval_list) - 1][0]
+            end1 = merged_interval_list[len(merged_interval_list) - 1][1]
+            start2 = interval_list_per_epoch_per_call[0]
+            end2 = interval_list_per_epoch_per_call[1]
+            if start2 > end1 or end2 < start1:
+                merged_interval_list.append(interval_list_per_epoch_per_call)
+            else:
+                if(start2 < start1):
+                    merged_interval_list[len(merged_interval_list)-1][0] = start2
+                if(end2 > end1):
+                    merged_interval_list[len(merged_interval_list)-1][1] = end2
+
+    total_time = 0.0
+    for merged_interval_element in merged_interval_list:
+        total_time += (merged_interval_element[1] - merged_interval_element[0])
+    return total_time
+
+def calculate_time_from_interval(interval_list):
+    total_read_time_from_intervals = np.array([0.0, 0.0, 0.0, 0.0])
+    epoch = 0
+    for interval_list_per_epoch in interval_list:
+        total_read_time_from_intervals[epoch] += merge_and_add_common_intervals(interval_list_per_epoch)
+        epoch = epoch + 1
+
+    return total_read_time_from_intervals
+
 number_of_criteria = int(sys.argv[1])  # e.g. If you want to plot 64, 128, 256; this value should be 3
 
 result_file_path_list = []
@@ -40,16 +72,24 @@ for index in xrange(0, len(result_file_path_list)):
         total_read_time = np.array([0.0, 0.0, 0.0, 0.0])  # indices are epoch numbers
         total_training_iteration_time = np.array([0.0, 0.0, 0.0, 0.0])
 
+        interval_list = []
+        for i in xrange(0, 4):
+            interval_list.append([])
+
         read_count = 0
+
         for row in dict_reader:
             epoch_number = 0 if int(row['Epoch']) == -1 else int(row['Epoch'])
             if row['Action Description'] == 'Time to Read Single Image':
                 total_read_time[epoch_number] += float(row['Time Taken'])
+                interval_list[epoch_number].append([float(row['Start Time']), float(row['End Time'])])
                 read_count = read_count + 1
             if row['Action Description'] == 'Training Iteration':
                 total_training_iteration_time[epoch_number] += float(row['Time Taken'])
 
-        data = [total_read_time/int(number_of_nodes), total_training_iteration_time/int(number_of_nodes)]
+        total_read_time_from_interval = calculate_time_from_interval(interval_list)
+
+        data = [total_read_time_from_interval/int(number_of_nodes), total_training_iteration_time/int(number_of_nodes)]
         data_read_count_scaling.append(read_count)
 
         for data_index in xrange(0, len(data)):
@@ -80,7 +120,7 @@ for index in xrange(0, len(result_file_path_list)):
                 data_table_row.append(str("{0:.2f} ({1:.2f} %)").format(data[row][column],
                                                                         data[row][column] /
                                                                         ((total_training_iteration_time[column] +
-                                                                          total_read_time[column]) /
+                                                                          total_read_time_from_interval[column]) /
                                                                          int(number_of_nodes)) * 100))
             data_table.append(data_table_row)
 
