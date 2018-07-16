@@ -101,7 +101,7 @@ for index in xrange(0, len(result_file_path_list)):
         plt.title("{} Nodes".format(number_of_nodes))
 
         #plt.show()
-        plt.savefig(result_file_path.split('.')[0]+"_plot.png")
+        plt.savefig(result_file_path.split('.csv')[0]+"_plot.png")
         plt.clf()
 
 columns = []
@@ -152,7 +152,7 @@ plt.xticks([])
 plt.title("Scale Out 5 Epochs")
 
 # plt.show()
-plt.savefig(result_file_path.split('.')[0].split('_')[0] + "_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_scaling_plot.png")
 
 plt.clf()
 
@@ -211,7 +211,7 @@ plt.xticks([])
 plt.title("Scale Out 5 Epochs Read Time")
 
 # plt.show()
-plt.savefig(result_file_path.split('.')[0].split('_')[0] + "_read_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_scaling_plot.png")
 
 plt.clf()
 
@@ -287,4 +287,4 @@ plt.xticks([])
 plt.title("Scale Out 3 Epochs Read Bandwidth")
 
 # plt.show()
-plt.savefig(result_file_path.split('.')[0].split('_')[0] + "_read_bandwidth_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_bandwidth_scaling_plot.png")
