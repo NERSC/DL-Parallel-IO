@@ -6,9 +6,20 @@ import matplotlib.pyplot as plt
 
 from pprint import pprint
 
+def check_if_sorted(input_list):
+    count = 0
+    for index in xrange(1, len(input_list)):
+        if input_list[index][0] < input_list[index - 1][0]:
+            count += 1
+            #print index
+    print ("Count {} of {}".format(count, len(input_list)))
+
 def merge_and_add_common_intervals(interval_list_per_epoch):
     merged_interval_list = []
-    for interval_list_per_epoch_per_call in interval_list_per_epoch:
+    sorted_interval_list = sorted(interval_list_per_epoch, key=lambda interval: interval[0])
+    # check_if_sorted(interval_list_per_epoch)
+    # check_if_sorted(sorted_interval_list)
+    for interval_list_per_epoch_per_call in sorted_interval_list:
         if len(merged_interval_list) == 0:
             merged_interval_list.append(interval_list_per_epoch_per_call)
         else:
@@ -16,17 +27,19 @@ def merge_and_add_common_intervals(interval_list_per_epoch):
             end1 = merged_interval_list[len(merged_interval_list) - 1][1]
             start2 = interval_list_per_epoch_per_call[0]
             end2 = interval_list_per_epoch_per_call[1]
-            if start2 > end1 or end2 < start1:
+            if start2 > end1:
                 merged_interval_list.append(interval_list_per_epoch_per_call)
             else:
-                if(start2 < start1):
+                if(start2 <= start1):
                     merged_interval_list[len(merged_interval_list)-1][0] = start2
-                if(end2 > end1):
+                if(end2 >= end1):
                     merged_interval_list[len(merged_interval_list)-1][1] = end2
 
     total_time = 0.0
+
     for merged_interval_element in merged_interval_list:
         total_time += (merged_interval_element[1] - merged_interval_element[0])
+
     return total_time
 
 def calculate_time_from_interval(interval_list):
@@ -72,9 +85,11 @@ for index in xrange(0, len(result_file_path_list)):
         total_read_time = np.array([0.0, 0.0, 0.0, 0.0])  # indices are epoch numbers
         total_training_iteration_time = np.array([0.0, 0.0, 0.0, 0.0])
 
-        interval_list = []
+        read_interval_list = []
+        training_interval_list = []
         for i in xrange(0, 4):
-            interval_list.append([])
+            read_interval_list.append([])
+            training_interval_list.append([])
 
         read_count = 0
 
@@ -82,14 +97,17 @@ for index in xrange(0, len(result_file_path_list)):
             epoch_number = 0 if int(row['Epoch']) == -1 else int(row['Epoch'])
             if row['Action Description'] == 'Time to Read Single Image':
                 total_read_time[epoch_number] += float(row['Time Taken'])
-                interval_list[epoch_number].append([float(row['Start Time']), float(row['End Time'])])
+                read_interval_list[epoch_number].append([float(row['Start Time']), float(row['End Time'])])
                 read_count = read_count + 1
             if row['Action Description'] == 'Training Iteration':
                 total_training_iteration_time[epoch_number] += float(row['Time Taken'])
+                training_interval_list[epoch_number].append([float(row['Start Time']), float(row['End Time'])])
 
-        total_read_time_from_interval = calculate_time_from_interval(interval_list)
+        total_read_time_from_interval = calculate_time_from_interval(read_interval_list)
+        total_training_iteration_time = calculate_time_from_interval(training_interval_list)
 
-        data = [total_read_time_from_interval/int(number_of_nodes), total_training_iteration_time/int(number_of_nodes)]
+        #data = [total_read_time_from_interval/int(number_of_nodes), total_training_iteration_time/int(number_of_nodes)]
+        data = [total_read_time_from_interval, total_training_iteration_time]
         data_read_count_scaling.append(read_count)
 
         for data_index in xrange(0, len(data)):
@@ -118,10 +136,9 @@ for index in xrange(0, len(result_file_path_list)):
             data_table_row = []
             for column in xrange(0, len(data[0])):
                 data_table_row.append(str("{0:.2f} ({1:.2f} %)").format(data[row][column],
-                                                                        data[row][column] /
+                                                                        np.divide(data[row][column],
                                                                         ((total_training_iteration_time[column] +
-                                                                          total_read_time_from_interval[column]) /
-                                                                         int(number_of_nodes)) * 100))
+                                                                          total_read_time_from_interval[column])) * 100)))
             data_table.append(data_table_row)
 
         # Add a table at the bottom of the axes
@@ -299,7 +316,7 @@ the_table = plt.table(cellText=data_table,
 # Adjust layout to make room for the table:
 plt.subplots_adjust(left=0.2, bottom=0.2)
 
-plt.ylabel("Bandwidth (MB/s)")
+plt.ylabel("Read Count")
 plt.xticks([])
 plt.title("Scale Out 3 Epochs Read Bandwidth")
 
