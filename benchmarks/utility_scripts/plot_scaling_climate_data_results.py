@@ -30,9 +30,9 @@ def merge_and_add_common_intervals(interval_list_per_epoch):
             if start2 > end1:
                 merged_interval_list.append(interval_list_per_epoch_per_call)
             else:
-                if(start2 <= start1):
+                if(start2 < start1):
                     merged_interval_list[len(merged_interval_list)-1][0] = start2
-                if(end2 >= end1):
+                if(end2 > end1):
                     merged_interval_list[len(merged_interval_list)-1][1] = end2
 
     total_time = 0.0

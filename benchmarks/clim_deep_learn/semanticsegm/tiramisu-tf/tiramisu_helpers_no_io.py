@@ -143,7 +143,7 @@ def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, updat
             channels = [ channel_list.index(c) for c in channels ]
         #figure out how much data we need to generate in memory
         dsize=  f['climate']['data'].shape # get shape 1 and shape 2
-        data = np.random.rand(channels, dsize[1],dsize[2]) 
+        data = np.random.rand(len(channels), dsize[1],dsize[2])
         #data = f['climate']['data'][channels,:,:]
 
         # cast data if needed
