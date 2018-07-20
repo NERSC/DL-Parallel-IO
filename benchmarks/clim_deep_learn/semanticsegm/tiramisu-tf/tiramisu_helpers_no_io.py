@@ -129,40 +129,29 @@ def _h5_input_subprocess_reader(path, channels, weights, minvals, maxvals, updat
     #Edited on July 16 2018, by Jialin Liu
     #Replacing following lines till 158 with fake I/O, to avoid I/O calls to file systems
     #
-    with h5.File(path, "r", driver="core", backing_store=False, libver="latest") as f:
-        #get min and max values and update stored values
-        if update_on_read:
-            minvals = minvals
-            maxvals = maxvals
+    dsize = [4, 768, 1152]  # Hard coded size for climate->data
+    data = np.random.rand(len(channels), dsize[1],dsize[2])
+    #data = f['climate']['data'][channels,:,:]
 
-        #get data
-        if 'channels' in f['climate']:
-            # some channels have been dropped from the file, so map to the
-            #  actual locations in the file array
-            channel_list = list(f['climate']['channels'])
-            channels = [ channel_list.index(c) for c in channels ]
-        #figure out how much data we need to generate in memory
-        dsize=  f['climate']['data'].shape # get shape 1 and shape 2
-        data = np.random.rand(len(channels), dsize[1],dsize[2])
-        #data = f['climate']['data'][channels,:,:]
+    # cast data if needed
+    if data.dtype != dtype:
+        #data = f['climate']['data'][channels,:,:].astype(dtype)
+        data = data.astype(dtype)
 
-        # cast data if needed
-        if data.dtype != dtype:
-            #data = f['climate']['data'][channels,:,:].astype(dtype)
-            data = data.astype(dtype)
+    #do min/max normalization
+    for c in range(len(channels)):
+        data[c, :, :] = (data[c, :, :]-minvals[c])/(maxvals[c]-minvals[c])
 
-        #do min/max normalization
-        for c in range(len(channels)):
-            data[c,:,:] = (data[c,:,:]-minvals[c])/(maxvals[c]-minvals[c])
+    # get label dataet shape
+    # label_shape = f['climate']['labels'].shape
+    label_shape = [768, 1152]  # Hard coded size of climate->labels
+    # generate same size of label data in memory
+    label = np.random.rand(label_shape[0], label_shape[1])
+    #get label
+    #label = f['climate']['labels'][...]
 
-        # get label dataet shape
-        label_shape = f['climate']['labels'].shape
-        # generate same size of label data in memory
-        label = np.random.rand(label_shape[0],label_shape[1])
-        #get label
-        #label = f['climate']['labels'][...]
-        if label.dtype != np.int32:
-            label = label.astype(np.int32)
+    if label.dtype != np.int32:
+        label = label.astype(np.int32)
 
     # with h5.File(path, "r", driver="core", backing_store=False, libver="latest") as f:
     #     #get min and max values and update stored values
