@@ -391,7 +391,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             num_samples = trn_data.shape[0] // comm_local_size
         else:
             num_samples = trn_data.shape[0] // comm_size
-        num_steps_per_epoch = num_samples // batch
+        #num_steps_per_epoch = num_samples // batch
+        num_steps_per_epoch = 3
         num_steps = num_epochs*num_steps_per_epoch
         if per_rank_output:
             print("Rank {} does {} steps per epoch".format(comm_rank, num_steps_per_epoch))
@@ -464,102 +465,124 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             training_loop_timer_logger = logger(comm_rank, "Training Loop", -1, True)
             training_loop_timer_logger.start_timer()
 
-            while not (sess.should_stop() or disable_training):
+            train_steps = 0
+            while not (sess.should_stop()):
                 #training loop
                 try:
-                    training_iteraion_time_logger = logger(comm_rank, "Training Iteration", epoch, True)
-                    training_iteraion_time_logger.start_timer()
+                    training_iteration_time_logger = logger(comm_rank, "Training Iteration", epoch, True)
+                    training_iteration_time_logger.start_timer()
 
                     nvtx.RangePush("Step", step)
                     #construct feed dict
-                    _, train_steps, tmp_loss = sess.run([train_op,
-                                                         global_step,
-                                                         (loss if per_rank_output else loss_avg)],
-                                                        feed_dict={handle: trn_handle})
-                    train_steps_in_epoch = train_steps%num_steps_per_epoch
-                    train_loss += tmp_loss
-                    nvtx.RangePop() # Step
-                    step += 1
-                    
-                    #print step report
-                    eff_steps = train_steps_in_epoch if (train_steps_in_epoch > 0) else num_steps_per_epoch
-                    if (train_steps % loss_print_interval) == 0:
-                        if per_rank_output:
-                            print("REPORT: rank {}, training loss for step {} (of {}) is {}, time {}".format(comm_rank, train_steps, num_steps, train_loss/eff_steps,time.time()-start_time))
-                        else:
-                            if comm_rank == 0:
-                                print("REPORT: training loss for step {} (of {}) is {}, time {}".format(train_steps, num_steps, train_loss/eff_steps,time.time()-start_time))
+                    if disable_training:
+                        train_steps = sess.run([global_step], feed_dict={handle: trn_handle})
 
-                    #do the validation phase
-                    if train_steps_in_epoch == 0:
-                        end_time = time.time()
-                        #print epoch report
-                        train_loss /= num_steps_per_epoch
-                        if per_rank_output:
-                            print("COMPLETED: rank {}, training loss for epoch {} (of {}) is {}, time {} s".format(comm_rank, epoch, num_epochs, train_loss, time.time() - start_time))
-                        else:
-                            if comm_rank == 0:
-                                print("COMPLETED: training loss for epoch {} (of {}) is {}, time {} s".format(epoch, num_epochs, train_loss, time.time() - start_time))
-                        
-                        #evaluation loop
-                        eval_loss = 0.
-                        eval_steps = 0
-                        nvtx.RangePush("Eval Loop", 7)
-                        while True:
-                            try:
-                                #construct feed dict
-                                _, tmp_loss, val_model_predictions, val_model_labels = sess.run([iou_update_op,
-                                                                                                 (loss if per_rank_output else loss_avg),
-                                                                                                 prediction,
-                                                                                                 next_elem[1]],
-                                                                                                feed_dict={handle: val_handle})
-                                
-                                #print some images
+                        train_steps_in_epoch = train_steps[0] % num_steps_per_epoch
+
+                        # do the validation phase
+                        if train_steps_in_epoch == 0:
+                            eval_steps = 0
+                            while True:
+                                try:
+                                    sess.run([next_elem[1]], feed_dict={handle: val_handle})
+                                    eval_steps += 1
+                                except tf.errors.OutOfRangeError:
+                                    sess.run(val_init_op, feed_dict={handle: val_handle})
+                                    break
+
+                    else:
+                        _, train_steps, tmp_loss = sess.run([train_op,
+                                                             global_step,
+                                                             (loss if per_rank_output else loss_avg)],
+                                                            feed_dict={handle: trn_handle})
+
+                        train_steps_in_epoch = train_steps%num_steps_per_epoch
+                        train_loss += tmp_loss
+                        nvtx.RangePop() # Step
+                        step += 1
+
+                        #print step report
+                        eff_steps = train_steps_in_epoch if (train_steps_in_epoch > 0) else num_steps_per_epoch
+                        if (train_steps % loss_print_interval) == 0:
+                            if per_rank_output:
+                                print("REPORT: rank {}, training loss for step {} (of {}) is {}, time {}".format(comm_rank, train_steps, num_steps, train_loss/eff_steps,time.time()-start_time))
+                            else:
                                 if comm_rank == 0:
-                                    if have_imsave:
-                                        imsave(image_dir+'/test_pred_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',np.argmax(val_model_predictions[0,...],axis=2)*100)
-                                        imsave(image_dir+'/test_label_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',val_model_labels[0,...]*100)
-                                        imsave(image_dir+'/test_combined_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',colormap[val_model_labels[0,...],np.argmax(val_model_predictions[0,...],axis=2)])
+                                    print("REPORT: training loss for step {} (of {}) is {}, time {}".format(train_steps, num_steps, train_loss/eff_steps,time.time()-start_time))
+
+                        #do the validation phase
+                        if train_steps_in_epoch == 0:
+                            end_time = time.time()
+                            #print epoch report
+                            train_loss /= num_steps_per_epoch
+                            if per_rank_output:
+                                print("COMPLETED: rank {}, training loss for epoch {} (of {}) is {}, time {} s".format(comm_rank, epoch, num_epochs, train_loss, time.time() - start_time))
+                            else:
+                                if comm_rank == 0:
+                                    print("COMPLETED: training loss for epoch {} (of {}) is {}, time {} s".format(epoch, num_epochs, train_loss, time.time() - start_time))
+
+                            #evaluation loop
+                            eval_loss = 0.
+                            eval_steps = 0
+                            nvtx.RangePush("Eval Loop", 7)
+                            while True:
+                                try:
+                                    #construct feed dict
+                                    _, tmp_loss, val_model_predictions, val_model_labels = sess.run([iou_update_op,
+                                                                                                     (loss if per_rank_output else loss_avg),
+                                                                                                     prediction,
+                                                                                                     next_elem[1]],
+                                                                                                    feed_dict={handle: val_handle})
+
+                                    #print some images
+                                    if comm_rank == 0:
+                                        if have_imsave:
+                                            imsave(image_dir+'/test_pred_epoch'+str(epoch)+'_estep'
+                                                   +str(eval_steps)+'_rank'+str(comm_rank)+'.png',np.argmax(val_model_predictions[0,...],axis=2)*100)
+                                            imsave(image_dir+'/test_label_epoch'+str(epoch)+'_estep'
+                                                   +str(eval_steps)+'_rank'+str(comm_rank)+'.png',val_model_labels[0,...]*100)
+                                            imsave(image_dir+'/test_combined_epoch'+str(epoch)+'_estep'
+                                                   +str(eval_steps)+'_rank'+str(comm_rank)+'.png',colormap[val_model_labels[0,...],np.argmax(val_model_predictions[0,...],axis=2)])
+                                        else:
+                                            np.save(image_dir+'/test_pred_epoch'+str(epoch)+'_estep'
+                                                    +str(eval_steps)+'_rank'+str(comm_rank)+'.npy',np.argmax(val_model_predictions[0,...],axis=2)*100)
+                                            np.save(image_dir+'/test_label_epoch'+str(epoch)+'_estep'
+                                                    +str(eval_steps)+'_rank'+str(comm_rank)+'.npy',val_model_labels[0,...]*100)
+
+                                    eval_loss += tmp_loss
+                                    eval_steps += 1
+                                except tf.errors.OutOfRangeError:
+                                    eval_steps = np.max([eval_steps,1])
+                                    eval_loss /= eval_steps
+                                    if per_rank_output:
+                                        print("COMPLETED: rank {}, evaluation loss for epoch {} (of {}) is {}".format(comm_rank, epoch, num_epochs, eval_loss))
                                     else:
-                                        np.save(image_dir+'/test_pred_epoch'+str(epoch)+'_estep'
-                                                +str(eval_steps)+'_rank'+str(comm_rank)+'.npy',np.argmax(val_model_predictions[0,...],axis=2)*100)
-                                        np.save(image_dir+'/test_label_epoch'+str(epoch)+'_estep'
-                                                +str(eval_steps)+'_rank'+str(comm_rank)+'.npy',val_model_labels[0,...]*100)
-
-                                eval_loss += tmp_loss
-                                eval_steps += 1
-                            except tf.errors.OutOfRangeError:
-                                eval_steps = np.max([eval_steps,1])
-                                eval_loss /= eval_steps
-                                if per_rank_output:
-                                    print("COMPLETED: rank {}, evaluation loss for epoch {} (of {}) is {}".format(comm_rank, epoch, num_epochs, eval_loss))
-                                else:
-                                    if comm_rank == 0:
-                                        print("COMPLETED: evaluation loss for epoch {} (of {}) is {}".format(epoch, num_epochs, eval_loss))
-                                if per_rank_output:
-                                    iou_score = sess.run(iou_op)
-                                    print("COMPLETED: rank {}, evaluation IoU for epoch {} (of {}) is {}".format(comm_rank, epoch, num_epochs, iou_score))
-                                else:
-                                    iou_score = sess.run(iou_avg)
-                                    if comm_rank == 0:
-                                        print("COMPLETED: evaluation IoU for epoch {} (of {}) is {}".format(epoch, num_epochs, iou_score))
-                                sess.run(iou_reset_op)
-                                sess.run(val_init_op, feed_dict={handle: val_handle})
-                                break
-                        nvtx.RangePop() # Eval Loop
+                                        if comm_rank == 0:
+                                            print("COMPLETED: evaluation loss for epoch {} (of {}) is {}".format(epoch, num_epochs, eval_loss))
+                                    if per_rank_output:
+                                        iou_score = sess.run(iou_op)
+                                        print("COMPLETED: rank {}, evaluation IoU for epoch {} (of {}) is {}".format(comm_rank, epoch, num_epochs, iou_score))
+                                    else:
+                                        iou_score = sess.run(iou_avg)
+                                        if comm_rank == 0:
+                                            print("COMPLETED: evaluation IoU for epoch {} (of {}) is {}".format(epoch, num_epochs, iou_score))
+                                    sess.run(iou_reset_op)
+                                    sess.run(val_init_op, feed_dict={handle: val_handle})
+                                    break
+                            nvtx.RangePop() # Eval Loop
                                 
-                        #reset counters
-                        epoch += 1
-                        train_loss = 0.
-                        step = 0
+                    #reset counters
+                    if disable_training and epoch >= num_epochs:
+                        break
 
-                        nvtx.RangePop() # Epoch
-                        nvtx.RangePush("Epoch", epoch)
+                    epoch += 1
+                    train_loss = 0.
+                    step = 0
 
-                        training_iteraion_time_logger.end_timer()
+                    nvtx.RangePop() # Epoch
+                    nvtx.RangePush("Epoch", epoch)
+
+                    training_iteration_time_logger.end_timer()
 
                 except tf.errors.OutOfRangeError:
                     break
