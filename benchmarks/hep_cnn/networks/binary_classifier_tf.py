@@ -142,7 +142,7 @@ class DataSet(object):
         load_file_time_logger.end_timer()
 
 
-    def __init__(self, filelist,num_tasks=1,taskid=0,split_filelist=False,split_file=False,data_format="NCHW"):
+    def __init__(self, filelist,num_tasks=1,taskid=0,split_filelist=False,split_file=False,data_format="NCHW",global_shuffle=False):
         """Construct DataSet"""
         #multinode stuff
         self._num_tasks = num_tasks
@@ -161,7 +161,12 @@ class DataSet(object):
             end = start + self._num_files
         
         assert self._num_files > 0, ('filelist is empty')
-        
+
+        # For global shuffling per epoch
+        self._global_shuffle = global_shuffle
+        self._full_filelist = filelist
+        self._shuffle_rng = np.random.RandomState(54321)
+
         self._filelist = filelist[start:end]
         self._initialized = False
         self.reset()
@@ -209,8 +214,14 @@ class DataSet(object):
                 self._epochs_completed += 1
                 #reset file index and shuffle list
                 self._file_index=0
+
+                # Shuffle the full filelist and redistribute the files to the nodes
+                if self._global_shuffle:
+                    self.global_shuffle()
+
+                # Local shuffle again as done before
                 np.random.shuffle(self._filelist)
-            
+
             #load the next file
             self.load_next_file()
             #assert batch_size <= self._num_examples
@@ -227,6 +238,32 @@ class DataSet(object):
 
         return images, labels, normweights, weights, psr
 
+    def global_shuffle(self):
+        global_shuffle_time_logger = logger(self._taskid, "Global Shuffle", self._epochs_completed)
+        global_shuffle_time_logger.start_timer()
+
+        self._num_files = len(self._full_filelist)
+        shuffled_file_id_list = self._shuffle_rng.permutation(self._num_files)
+        start = 0
+        end = self._num_files
+
+        shuffled_filelist = []
+
+        for id in shuffled_file_id_list:
+            shuffled_filelist.append(self._full_filelist[id])
+
+        self._full_filelist = shuffled_filelist
+
+        if self._split_filelist:
+            self._num_files = int(np.floor(len(self._full_filelist) / float(self._num_tasks)))
+            start = self._taskid * self._num_files
+            end = start + self._num_files
+
+        assert self._num_files > 0, ('filelist is empty')
+
+        self._filelist = self._full_filelist[start:end]
+
+        global_shuffle_time_logger.end_timer()
 
 # ## Dummy handler
 

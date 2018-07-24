@@ -229,7 +229,7 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,d
             print(time.time(),"COMPLETED rank",args["task_index"],"epoch %d, average training loss %g (%.3f sec/batch)"%(epochs_completed, 
                                                                                  train_loss/float(train_batches),
                                                                                  train_time/float(train_batches)))
-            
+
             #reset counters
             train_loss=0.
             train_batches=0
@@ -411,11 +411,11 @@ if args['node_type'] == 'worker':
     if not args['dummy_data']:
         #training files
         trainfiles = [args['inputpath']+'/'+x for x in os.listdir(args['inputpath']) if 'train' in x and (x.endswith('.h5') or x.endswith('.hdf5'))]
-        trainset = bc.DataSet(trainfiles,args['num_workers'],args['task_index'],split_filelist=True,split_file=False,data_format=args["conv_params"]['data_format'])
+        trainset = bc.DataSet(trainfiles,args['num_workers'],args['task_index'],split_filelist=True,split_file=False,data_format=args["conv_params"]['data_format'],global_shuffle=True)
     
         #validation files
         validationfiles = [args['inputpath']+'/'+x for x in os.listdir(args['inputpath']) if 'val' in x and (x.endswith('.h5') or x.endswith('.hdf5'))]
-        validationset = bc.DataSet(validationfiles,args['num_workers'],args['task_index'],split_filelist=True,split_file=False,data_format=args["conv_params"]['data_format'])
+        validationset = bc.DataSet(validationfiles,args['num_workers'],args['task_index'],split_filelist=True,split_file=False,data_format=args["conv_params"]['data_format'],global_shuffle=True)
     else:
         #training files and validation files are just dummy sets then
         trainset = bc.DummySet(input_shape=args['input_shape'], samples_per_epoch=10000, task_index=args['task_index'])

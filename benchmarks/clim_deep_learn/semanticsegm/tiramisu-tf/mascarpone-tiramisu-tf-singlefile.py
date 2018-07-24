@@ -4,10 +4,13 @@ sys.path.append("../../..")
 
 from utility_classes.time_logger import TimeLogger as logger
 from utility_classes.time_logger import TimeLoggerCheckpointSaverListener as checkpoint_listener
+from utility_classes.timeliner import TimeLiner as timeliner
 
 import tensorflow as tf
 import tensorflow.contrib.keras as tfk
 from tensorflow.python.ops import array_ops
+from tensorflow.python.client import timeline
+
 import numpy as np
 import argparse
 
@@ -225,7 +228,16 @@ colormap = np.array([[[  0,  0,  0],  #   0      0     black
                      ])
 
 #main function
-def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth, disable_training):
+def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth, disable_training, enable_tf_timeline):
+    options = None
+    run_metadata = None
+    many_runs_timeline = None
+
+    if enable_tf_timeline:
+        options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
+        many_runs_timeline = timeliner()
+
     global_time_logger = logger(-1, "Global Total Time", -1, True)
     global_time_logger.start_timer()
 
@@ -440,17 +452,47 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         #start session
         with tf.train.MonitoredTrainingSession(config=sess_config, hooks=hooks) as sess:
             #initialize
-            sess.run([init_op, init_local_op])
+            sess.run([init_op, init_local_op], options=options, run_metadata=run_metadata)
+
+            if enable_tf_timeline:
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                many_runs_timeline.update_timeline(chrome_trace)
+
             #restore from checkpoint:
             if comm_rank == 0:
                 load_model(sess, checkpoint_saver, checkpoint_dir, comm_rank)
             #broadcast loaded model variables
-            sess.run(init_bcast)
+            sess.run(init_bcast, options=options, run_metadata=run_metadata)
+
+            if enable_tf_timeline:
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                many_runs_timeline.update_timeline(chrome_trace)
+
             #create iterator handles
-            trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string])
+            trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string], options=options,
+                                              run_metadata=run_metadata)
+
+            if enable_tf_timeline:
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                many_runs_timeline.update_timeline(chrome_trace)
+
             #init iterators
-            sess.run(trn_init_op, feed_dict={handle: trn_handle})
-            sess.run(val_init_op, feed_dict={handle: val_handle})
+            sess.run(trn_init_op, feed_dict={handle: trn_handle}, options=options, run_metadata=run_metadata)
+
+            if enable_tf_timeline:
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                many_runs_timeline.update_timeline(chrome_trace)
+
+            sess.run(val_init_op, feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
+
+            if enable_tf_timeline:
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                many_runs_timeline.update_timeline(chrome_trace)
 
             nvtx.RangePop() # TF Init
 
@@ -475,7 +517,13 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                     nvtx.RangePush("Step", step)
                     #construct feed dict
                     if disable_training:
-                        train_steps = sess.run([global_step], feed_dict={handle: trn_handle})
+                        train_steps = sess.run([global_step], feed_dict={handle: trn_handle}, options=options,
+                                               run_metadata=run_metadata)
+
+                        if enable_tf_timeline:
+                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                            many_runs_timeline.update_timeline(chrome_trace)
 
                         train_steps_in_epoch = train_steps[0] % num_steps_per_epoch
 
@@ -484,17 +532,34 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                             eval_steps = 0
                             while True:
                                 try:
-                                    sess.run([next_elem[1]], feed_dict={handle: val_handle})
+                                    sess.run([next_elem[1]], feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
+
+                                    if enable_tf_timeline:
+                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                        many_runs_timeline.update_timeline(chrome_trace)
+
                                     eval_steps += 1
                                 except tf.errors.OutOfRangeError:
-                                    sess.run(val_init_op, feed_dict={handle: val_handle})
+                                    sess.run(val_init_op, feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
+
+                                    if enable_tf_timeline:
+                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                        many_runs_timeline.update_timeline(chrome_trace)
+
                                     break
 
                     else:
                         _, train_steps, tmp_loss = sess.run([train_op,
                                                              global_step,
                                                              (loss if per_rank_output else loss_avg)],
-                                                            feed_dict={handle: trn_handle})
+                                                            feed_dict={handle: trn_handle}, options=options, run_metadata=run_metadata)
+
+                        if enable_tf_timeline:
+                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                            many_runs_timeline.update_timeline(chrome_trace)
 
                         train_steps_in_epoch = train_steps%num_steps_per_epoch
                         train_loss += tmp_loss
@@ -532,7 +597,14 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                                                                      (loss if per_rank_output else loss_avg),
                                                                                                      prediction,
                                                                                                      next_elem[1]],
-                                                                                                    feed_dict={handle: val_handle})
+                                                                                                    feed_dict={handle: val_handle},
+                                                                                                    options=options,
+                                                                                                    run_metadata=run_metadata)
+
+                                    if enable_tf_timeline:
+                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                        many_runs_timeline.update_timeline(chrome_trace)
 
                                     #print some images
                                     if comm_rank == 0:
@@ -560,14 +632,38 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                         if comm_rank == 0:
                                             print("COMPLETED: evaluation loss for epoch {} (of {}) is {}".format(epoch, num_epochs, eval_loss))
                                     if per_rank_output:
-                                        iou_score = sess.run(iou_op)
+                                        iou_score = sess.run(iou_op, options=options, run_metadata=run_metadata)
+
+                                        if enable_tf_timeline:
+                                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                            many_runs_timeline.update_timeline(chrome_trace)
+
                                         print("COMPLETED: rank {}, evaluation IoU for epoch {} (of {}) is {}".format(comm_rank, epoch, num_epochs, iou_score))
                                     else:
-                                        iou_score = sess.run(iou_avg)
+                                        iou_score = sess.run(iou_avg, options=options, run_metadata=run_metadata)
+
+                                        if enable_tf_timeline:
+                                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                            many_runs_timeline.update_timeline(chrome_trace)
+
                                         if comm_rank == 0:
                                             print("COMPLETED: evaluation IoU for epoch {} (of {}) is {}".format(epoch, num_epochs, iou_score))
-                                    sess.run(iou_reset_op)
-                                    sess.run(val_init_op, feed_dict={handle: val_handle})
+                                    sess.run(iou_reset_op, options=options, run_metadata=run_metadata)
+
+                                    if enable_tf_timeline:
+                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                        many_runs_timeline.update_timeline(chrome_trace)
+
+                                    sess.run(val_init_op, feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
+
+                                    if enable_tf_timeline:
+                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                                        many_runs_timeline.update_timeline(chrome_trace)
+
                                     break
                             nvtx.RangePop() # Eval Loop
                                 
@@ -592,6 +688,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
 
             training_loop_timer_logger.end_timer()
 
+    if enable_tf_timeline:
+        many_runs_timeline.save('Timeliner_output.json')
 
     io_training_time_logger.end_timer()
     global_time_logger.end_timer()
@@ -619,6 +717,7 @@ if __name__ == '__main__':
     AP.add_argument("--filter-sz",type=int,default=3,help="Convolution filter size")
     AP.add_argument("--growth",type=int,default=16,help="Channel growth rate per layer")
     AP.add_argument("--disable_training", help="Disable training for test purpose", action='store_true')
+    AP.add_argument("--enable_tf_timeline", help="Enable Timeline module for tracing TF workflow", action='store_true')
     parsed = AP.parse_args()
 
     #play with weighting
@@ -631,4 +730,8 @@ if __name__ == '__main__':
     argparse_timer_logger.end_timer()
 
     #invoke main function
-    main(input_path=parsed.datadir,blocks=parsed.blocks,weights=weights,image_dir=parsed.output,checkpoint_dir=parsed.chkpt_dir, trn_sz=parsed.trn_sz, learning_rate=parsed.lr, loss_type=parsed.loss, fs_type=parsed.fs, opt_type=parsed.optimizer, num_epochs=parsed.epochs, batch=parsed.batch, batchnorm=parsed.use_batchnorm, dtype=dtype, chkpt=parsed.chkpt, filter_sz=parsed.filter_sz, growth=parsed.growth, disable_training=parsed.disable_training)
+    main(input_path=parsed.datadir,blocks=parsed.blocks,weights=weights,image_dir=parsed.output,
+         checkpoint_dir=parsed.chkpt_dir, trn_sz=parsed.trn_sz, learning_rate=parsed.lr, loss_type=parsed.loss,
+         fs_type=parsed.fs, opt_type=parsed.optimizer, num_epochs=parsed.epochs, batch=parsed.batch,
+         batchnorm=parsed.use_batchnorm, dtype=dtype, chkpt=parsed.chkpt, filter_sz=parsed.filter_sz,
+         growth=parsed.growth, disable_training=parsed.disable_training, enable_tf_timeline=parsed.enable_tf_timeline)
