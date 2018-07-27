@@ -23,7 +23,7 @@ elif os.path.isdir(input_path):
 
 output_file = open(output_file_path, "w")
 output_file_csv = open(output_file_path+".csv", "w")
-print >> output_file_csv, "Epoch, Rank, Action Name, Action Description, Start Time, End Time, Time Taken"
+print >> output_file_csv, "Epoch, Rank, Action Name, Action Description, Start Time, End Time, Time Taken, Process ID, Current Thread"
 
 for input_file in input_file_list:
     for line in input_file:

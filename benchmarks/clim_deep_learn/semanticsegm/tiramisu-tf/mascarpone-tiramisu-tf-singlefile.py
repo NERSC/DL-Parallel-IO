@@ -452,51 +452,25 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         #start session
         with tf.train.MonitoredTrainingSession(config=sess_config, hooks=hooks) as sess:
             #initialize
-            sess.run([init_op, init_local_op], options=options, run_metadata=run_metadata)
-
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            sess.run([init_op, init_local_op])
 
             #restore from checkpoint:
             if comm_rank == 0:
                 load_model(sess, checkpoint_saver, checkpoint_dir, comm_rank)
             #broadcast loaded model variables
-            sess.run(init_bcast, options=options, run_metadata=run_metadata)
-
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            sess.run(init_bcast)
 
             #create iterator handles
-            trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string], options=options,
-                                              run_metadata=run_metadata)
-
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string])
 
             #init iterators
-            sess.run(trn_init_op, feed_dict={handle: trn_handle}, options=options, run_metadata=run_metadata)
+            sess.run(trn_init_op, feed_dict={handle: trn_handle})
 
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            sess.run(val_init_op, feed_dict={handle: val_handle})
 
-            sess.run(val_init_op, feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
+            nvtx.RangePop()  # TF Init
 
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
-
-            nvtx.RangePop() # TF Init
-
-            #do the training
+            # do the training
             epoch = 1
             step = 1
             train_loss = 0.
@@ -515,7 +489,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                     training_iteration_time_logger.start_timer()
 
                     nvtx.RangePush("Step", step)
-                    #construct feed dict
+
                     if disable_training:
                         train_steps = sess.run([global_step], feed_dict={handle: trn_handle}, options=options,
                                                run_metadata=run_metadata)
@@ -551,6 +525,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                     break
 
                     else:
+                        # construct feed dict
                         _, train_steps, tmp_loss = sess.run([train_op,
                                                              global_step,
                                                              (loss if per_rank_output else loss_avg)],
@@ -632,21 +607,11 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                         if comm_rank == 0:
                                             print("COMPLETED: evaluation loss for epoch {} (of {}) is {}".format(epoch, num_epochs, eval_loss))
                                     if per_rank_output:
-                                        iou_score = sess.run(iou_op, options=options, run_metadata=run_metadata)
-
-                                        if enable_tf_timeline:
-                                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                                            many_runs_timeline.update_timeline(chrome_trace)
+                                        iou_score = sess.run(iou_op)
 
                                         print("COMPLETED: rank {}, evaluation IoU for epoch {} (of {}) is {}".format(comm_rank, epoch, num_epochs, iou_score))
                                     else:
-                                        iou_score = sess.run(iou_avg, options=options, run_metadata=run_metadata)
-
-                                        if enable_tf_timeline:
-                                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                                            many_runs_timeline.update_timeline(chrome_trace)
+                                        iou_score = sess.run(iou_avg)
 
                                         if comm_rank == 0:
                                             print("COMPLETED: evaluation IoU for epoch {} (of {}) is {}".format(epoch, num_epochs, iou_score))
@@ -666,16 +631,16 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
 
                                     break
                             nvtx.RangePop() # Eval Loop
-                                
-                    #reset counters
-                    if disable_training and epoch >= num_epochs:
+
+                    if epoch >= num_epochs:
                         break
 
+                    # reset counters
                     epoch += 1
                     train_loss = 0.
                     step = 0
 
-                    nvtx.RangePop() # Epoch
+                    nvtx.RangePop()  # Epoch
                     nvtx.RangePush("Epoch", epoch)
 
                     training_iteration_time_logger.end_timer()

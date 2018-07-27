@@ -15,12 +15,14 @@ for arg_indices in xrange(2, (number_of_criteria+1)*2, 2):
     result_file_path_list.append(sys.argv[arg_indices])
     number_of_nodes_list.append(sys.argv[arg_indices + 1])
 
-rows = ['Read', 'Load File', 'Training Iteration']
+rows = ['Read(s)', 'Load(s)', 'Training(s)']
 
-data_scaling = [] * len(rows)
+rows_scaling = ['Read(s)', 'Load(s)', 'Training(s)', 'Checkpoint(s)']
+
+data_scaling = [] * len(rows_scaling)
 data_read_count_scaling = []
 
-for index in xrange(0, len(rows)):
+for index in xrange(0, len(rows_scaling)):
     data_scaling.append([])
 
 for data_scaling_element in data_scaling:
@@ -39,10 +41,15 @@ for index in xrange(0, len(result_file_path_list)):
         total_read_time = np.array([0.0, 0.0, 0.0, 0.0, 0.0])  # indices are epoch numbers
         total_load_file_time = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
         total_training_iteration_time = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+        total_checkpointing_time = 0.0
 
         read_count = 0
         for row in dict_reader:
             epoch_number = 0 if int(row['Epoch']) == -1 else int(row['Epoch'])
+            if epoch_number > 4:
+                if row['Action Description'] == 'Checkpoint Listener':
+                    total_checkpointing_time += float(row['Time Taken'])
+                continue
             if row['Action Description'] == 'HDF5 File Read':
                 total_read_time[epoch_number] += float(row['Time Taken'])
                 read_count = read_count + 1
@@ -57,6 +64,8 @@ for index in xrange(0, len(result_file_path_list)):
 
         for data_index in xrange(0, len(data)):
             data_scaling[data_index][index] += sum(data[data_index])
+        data_scaling[len(data)][index] = total_checkpointing_time
+        data_scaling[len(data)-1][index] -= total_checkpointing_time
 
         columns = ['Epoch 1', 'Epoch 2', 'Epoch 3', 'Epoch 4', 'Epoch 5']
 
@@ -101,7 +110,7 @@ for index in xrange(0, len(result_file_path_list)):
         plt.title("{} Nodes".format(number_of_nodes))
 
         #plt.show()
-        plt.savefig(result_file_path.split('.csv')[0]+"_plot.png")
+        plt.savefig(result_file_path.split('.csv')[0]+"_plot.png", dpi=300, bbox_inches='tight')
         plt.clf()
 
 columns = []
@@ -119,10 +128,11 @@ for row in xrange(0, len(data_scaling)):
         data_table_row.append(str("{0:.2f} ({1:.2f} %)").format(data_scaling[row][column],
                                                                 data_scaling[row][column] /
                                                                 total_column_criteria_time * 100))
+
     data_table.append(data_table_row)
 
 # Get some pastel shades for the colors
-colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
+colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows_scaling)))
 n_rows = len(data_scaling)
 
 index = np.arange(len(columns)) + 0.3
@@ -139,7 +149,7 @@ for row in range(n_rows):
 
 # Add a table at the bottom of the axes
 the_table = plt.table(cellText=data_table,
-                      rowLabels=rows,
+                      rowLabels=rows_scaling,
                       rowColours=colors,
                       colLabels=columns,
                       loc='bottom')
@@ -152,11 +162,11 @@ plt.xticks([])
 plt.title("Scale Out 5 Epochs")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_scaling_plot.png", dpi=300, bbox_inches='tight')
 
 plt.clf()
 
-rows = ['Read Time', 'Ideal Read Time']
+rows = ['Read(s)', 'Ideal(s)']
 
 # Get some pastel shades for the colors
 colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
@@ -211,13 +221,13 @@ plt.xticks([])
 plt.title("Scale Out 5 Epochs Read Time")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_scaling_plot.png", dpi=300, bbox_inches='tight')
 
 plt.clf()
 
 # Plot Read Count
 
-rows = ['Read Count', 'Read Time', 'Read Bandwidth', 'Ideal Case']
+rows = ['Count', 'Time(s)', 'B/W(GB/s)', 'Ideal(GB/s)']
 
 colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
 
@@ -282,9 +292,9 @@ the_table = plt.table(cellText=data_table,
 # Adjust layout to make room for the table:
 plt.subplots_adjust(left=0.2, bottom=0.2)
 
-plt.ylabel("Bandwidth (GB/s)")
+plt.ylabel("Bandwidth(GB/s)")
 plt.xticks([])
 plt.title("Scale Out 3 Epochs Read Bandwidth")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_bandwidth_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_bandwidth_scaling_plot.png", dpi=300, bbox_inches='tight')

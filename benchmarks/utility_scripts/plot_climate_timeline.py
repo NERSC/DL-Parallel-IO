@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     data = zip(action_names, start_times, end_times)
 
-    _, data = merge_and_add_common_intervals(data)
+    # _, data = merge_and_add_common_intervals(data)
 
     columns = ('Read', 'Training Iteration')
 
@@ -103,9 +103,9 @@ if __name__ == "__main__":
     index = np.arange(len(columns)) + 0.3
     bar_width = 0.4
 
-    '''# Initialize the vertical-offset for the stacked bar chart.
-    y_offset_read = np.zeros(len(count_read))
-    y_offset_training_iteration = np.zeros(len(count_training_iteration))
+    # Initialize the vertical-offset for the stacked bar chart.
+    y_offset_read = np.zeros(count_read)
+    y_offset_training_iteration = np.zeros(count_training_iteration)
 
     data = [action_names, start_times, end_times]
 
@@ -124,7 +124,5 @@ if __name__ == "__main__":
     plt.ylabel("Time line")
     plt.xticks(columns)
     plt.title("Time line for {} nodes run".format(number_of_nodes))
-
-    plt.show()'''
 
     plot_hrange(data, output_image)

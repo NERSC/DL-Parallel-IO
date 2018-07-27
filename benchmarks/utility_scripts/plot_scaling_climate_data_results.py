@@ -60,7 +60,7 @@ for arg_indices in xrange(2, (number_of_criteria+1)*2, 2):
     result_file_path_list.append(sys.argv[arg_indices])
     number_of_nodes_list.append(sys.argv[arg_indices + 1])
 
-rows = ['Read', 'Training Iteration']
+rows = ['Read(s)', 'Training(s)']
 
 data_scaling = [] * len(rows)
 
@@ -156,7 +156,7 @@ for index in xrange(0, len(result_file_path_list)):
         plt.title("{} Nodes".format(number_of_nodes))
 
         #plt.show()
-        plt.savefig(result_file_path.split('.csv')[0]+"_plot.png")
+        plt.savefig(result_file_path.split('.csv')[0]+"_plot.png", dpi=300, bbox_inches='tight')
         plt.clf()
 
 columns = []
@@ -207,11 +207,11 @@ plt.xticks([])
 plt.title("Scale Out 3 Epochs")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_scaling_plot.png", dpi=300, bbox_inches='tight')
 
 plt.clf()
 
-rows = ['Read Time', 'Ideal Read Time']
+rows = ['Read(s)', 'Ideal(s)']
 
 # Get some pastel shades for the colors
 colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
@@ -266,13 +266,13 @@ plt.xticks([])
 plt.title("Scale Out 3 Epochs Read Time")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_scaling_plot.png", dpi=300, bbox_inches='tight')
 
 plt.clf()
 
 # Plot Read Count
 
-rows = ['Read Count', 'Read Time', 'Read Bandwidth', 'Ideal Case']
+rows = ['Count', 'Time(s)', 'B/W(GB/s)', 'Ideal(GB/s)']
 
 colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
 
@@ -321,13 +321,13 @@ plt.xticks([])
 plt.title("Scale Out 3 Epochs Read Bandwidth")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_count_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_count_scaling_plot.png", dpi=300, bbox_inches='tight')
 
 plt.clf()
 
 # Plot Read Count
 
-rows = ['Read Count', 'Read Time', 'Read Bandwidth', 'Ideal Case']
+rows = ['Count', 'Time(s)', 'B/W(GB/s)', 'Ideal(GB/s)']
 
 colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
 
@@ -388,4 +388,4 @@ plt.xticks([])
 plt.title("Scale Out 3 Epochs Read Bandwidth")
 
 # plt.show()
-plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_bandwidth_scaling_plot.png")
+plt.savefig(result_file_path.split("_" + sys.argv[len(sys.argv)-1])[0] + "_read_bandwidth_scaling_plot.png", dpi=300, bbox_inches='tight')
