@@ -138,7 +138,7 @@ for index in xrange(0, len(result_file_path_list)):
                 data_table_row.append(str("{0:.2f} ({1:.2f} %)").format(data[row][column],
                                                                         np.divide(data[row][column],
                                                                         ((total_training_iteration_time[column] +
-                                                                          total_read_time_from_interval[column])) * 100)))
+                                                                          total_read_time_from_interval[column]))) * 100))
             data_table.append(data_table_row)
 
         # Add a table at the bottom of the axes
