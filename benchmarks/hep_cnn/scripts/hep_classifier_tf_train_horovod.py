@@ -76,6 +76,9 @@ sys.path.append("../..")
 from utility_classes.time_logger import TimeLogger as logger
 from utility_classes.time_logger import TimeLoggerCheckpointSaverListener as checkpoint_listener
 
+from tensorflow.python.client import timeline
+from utility_classes.timeliner import TimeLiner as timeliner
+
 #housekeeping
 import networks.binary_classifier_tf as bc
 
@@ -99,8 +102,9 @@ def parse_arguments():
     parser.add_argument('--dummy_data', action='store_const', const=True, default=False, 
                         help='use dummy data instead of real data')
     parser.add_argument("--disable_training", help="Disable training for test purpose", action='store_true')
+    parser.add_argument("--enable_tf_timeline", help="Enable Timeline module for tracing TF workflow", action='store_true')
     pargs = parser.parse_args()
-    
+
     #load the json:
     with open(pargs.config,"r") as f:
         args = json.load(f)
@@ -110,6 +114,7 @@ def parse_arguments():
     args['num_ps'] = 0
     args['dummy_data'] = pargs.dummy_data
     args['disable_training'] = pargs.disable_training
+    args['enable_tf_timeline'] = pargs.enable_tf_timeline
     
     #modify the activations
     if args['conv_params']['activation'] == 'ReLU':
@@ -157,9 +162,18 @@ def parse_arguments():
     return args
 
 
-def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,disable_training):
+def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,disable_training, enable_tf_timeline):
     train_loop_logger = logger(int(args["task_index"]), "Train Loop")
     train_loop_logger.start_timer()
+
+    options = None
+    run_metadata = None
+    many_runs_timeline = None
+
+    if enable_tf_timeline:
+        options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
+        many_runs_timeline = timeliner()
 
     #counter stuff
     trainset.reset()
@@ -200,23 +214,46 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,d
             #update weights
             start_time = time.time()
             if args['create_summary']:
-                _, gstep, summary, tmp_loss = sess.run([train_step, global_step, train_summary, loss_fn], feed_dict=feed_dict)
+                _, gstep, summary, tmp_loss = sess.run([train_step, global_step, train_summary, loss_fn],
+                                                       feed_dict=feed_dict, options=options, run_metadata=run_metadata)
+
+                if enable_tf_timeline:
+                    fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                    chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                    many_runs_timeline.update_timeline(chrome_trace)
             else:
-                _, gstep, tmp_loss = sess.run([train_step, global_step, loss_fn], feed_dict=feed_dict)
+                _, gstep, tmp_loss = sess.run([train_step, global_step, loss_fn], feed_dict=feed_dict, options=options,
+                                              run_metadata=run_metadata)
+
+                if enable_tf_timeline:
+                    fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                    chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                    many_runs_timeline.update_timeline(chrome_trace)
 
             #update kfac parameters
             if optlist:
-                sess.run(optlist[0],feed_dict=feed_dict)
-                if gstep%args["kfac_inv_update_frequency"]==0:
-                    sess.run(optlist[1],feed_dict=feed_dict)
+                sess.run(optlist[0], feed_dict=feed_dict, options=options, run_metadata=run_metadata)
+
+                if enable_tf_timeline:
+                    fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                    chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                    many_runs_timeline.update_timeline(chrome_trace)
+
+                if gstep%args["kfac_inv_update_frequency"] == 0:
+                    sess.run(optlist[1], feed_dict=feed_dict, options=options, run_metadata=run_metadata)
+
+                    if enable_tf_timeline:
+                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                        many_runs_timeline.update_timeline(chrome_trace)
 
         end_time = time.time()
         train_time += end_time-start_time
-        
+
         #increment train loss and batch number
         train_loss += tmp_loss
         train_batches += 1
-        
+
         #determine if we give a short update:
         if gstep%args['display_interval']==0:
             print(time.time(),"REPORT rank",args["task_index"],"global step %d., average training loss %g (%.3f sec/batch)"%(gstep,
@@ -290,7 +327,13 @@ def train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,d
             validation_auc = sess.run(auc_fn[0])
             print(time.time(),"COMPLETED epoch %d, average validation auc %g"%(epochs_completed, validation_auc))
 
+        if enable_tf_timeline:
+            many_runs_timeline.save('Timeliner_output.json')
+
         train_iteration_logger.end_timer()
+
+    if enable_tf_timeline:
+        many_runs_timeline.save('Timeliner_output.json')
 
     train_loop_logger.end_timer()
 
@@ -503,7 +546,8 @@ if (args['node_type'] == 'worker'):
         
                 #do the training loop
                 total_time = time.time()
-                train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,bool(args['disable_training']))
+                train_loop(sess,train_step,global_step,optlist,args,trainset,validationset,bool(args['disable_training']),
+                           bool(args['enable_tf_timeline']))
                 total_time -= time.time()
                 print("FINISHED Training. Total time %g"%(total_time))
 
