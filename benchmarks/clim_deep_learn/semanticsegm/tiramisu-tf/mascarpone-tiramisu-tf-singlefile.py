@@ -227,16 +227,38 @@ colormap = np.array([[[  0,  0,  0],  #   0      0     black
                       [255,255,255]], #   2      2     white
                      ])
 
+
+# Timeline related functions
+# TODO: Encapsulate in a different class later
+def init_timeline_configs(enable_tf_timeline, trace_level, min_timeline_step, max_timeline_step):
+    options = None
+    run_metadata = None
+    many_runs_timeline = None
+
+    if enable_tf_timeline:
+        options = tf.RunOptions(trace_level=trace_level)
+        run_metadata = tf.RunMetadata()
+        many_runs_timeline = timeliner()
+
+    return options, run_metadata, many_runs_timeline, min_timeline_step, max_timeline_step
+
+
+def update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps=-1,
+                             min_step=-1, max_step=-1):
+    if enable_tf_timeline and train_steps >= min_step and train_steps <= max_step:
+        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+        chrome_trace = fetched_timeline.generate_chrome_trace_format()
+        many_runs_timeline.update_timeline(chrome_trace)
+
+
 #main function
 def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learning_rate, loss_type, fs_type, opt_type, batch, batchnorm, num_epochs, dtype, chkpt, filter_sz, growth, disable_training, enable_tf_timeline):
     options = None
     run_metadata = None
     many_runs_timeline = None
 
-    if enable_tf_timeline:
-        options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-        run_metadata = tf.RunMetadata()
-        many_runs_timeline = timeliner()
+    options, run_metadata, many_runs_timeline, min_timeline_step, max_timeline_step = \
+        init_timeline_configs(enable_tf_timeline, tf.RunOptions.FULL_TRACE, 5, 10)
 
     global_time_logger = logger(-1, "Global Total Time", -1, True)
     global_time_logger.start_timer()
@@ -404,7 +426,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
         else:
             num_samples = trn_data.shape[0] // comm_size
         #num_steps_per_epoch = num_samples // batch
-        num_steps_per_epoch = 3
+        num_steps_per_epoch = 10
         num_steps = num_epochs*num_steps_per_epoch
         if per_rank_output:
             print("Rank {} does {} steps per epoch".format(comm_rank, num_steps_per_epoch))
@@ -464,25 +486,16 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string], options=options,
                                                run_metadata=run_metadata)
 
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
             #init iterators
             sess.run(trn_init_op, feed_dict={handle: trn_handle}, options=options, run_metadata=run_metadata)
 
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
             sess.run(val_init_op, feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
 
-            if enable_tf_timeline:
-                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                many_runs_timeline.update_timeline(chrome_trace)
+            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
             nvtx.RangePop()  # TF Init
 
@@ -510,10 +523,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                         train_steps = sess.run([global_step], feed_dict={handle: trn_handle}, options=options,
                                                run_metadata=run_metadata)
 
-                        if enable_tf_timeline:
-                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                            many_runs_timeline.update_timeline(chrome_trace)
+                        update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps[0],
+                                                 min_timeline_step, max_timeline_step)
 
                         train_steps_in_epoch = train_steps[0] % num_steps_per_epoch
 
@@ -525,20 +536,14 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                     sess.run([next_elem[1]], feed_dict={handle: val_handle}, options=options,
                                              run_metadata=run_metadata)
 
-                                    if enable_tf_timeline:
-                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                                        many_runs_timeline.update_timeline(chrome_trace)
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
                                     eval_steps += 1
                                 except tf.errors.OutOfRangeError:
                                     sess.run(val_init_op, feed_dict={handle: val_handle}, options=options,
                                              run_metadata=run_metadata)
 
-                                    if enable_tf_timeline:
-                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                                        many_runs_timeline.update_timeline(chrome_trace)
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
                                     break
 
@@ -550,10 +555,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                             feed_dict={handle: trn_handle}, options=options,
                                                             run_metadata=run_metadata)
 
-                        if enable_tf_timeline:
-                            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                            chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                            many_runs_timeline.update_timeline(chrome_trace)
+                        update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps,
+                                                 min_timeline_step, max_timeline_step)
 
                         train_steps_in_epoch = train_steps%num_steps_per_epoch
                         train_loss += tmp_loss
@@ -584,6 +587,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                             eval_loss = 0.
                             eval_steps = 0
                             nvtx.RangePush("Eval Loop", 7)
+                            timeline_help_count = 0
                             while True:
                                 try:
                                     #construct feed dict
@@ -595,10 +599,10 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                                                                     options=options,
                                                                                                     run_metadata=run_metadata)
 
-                                    if enable_tf_timeline:
-                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                                        many_runs_timeline.update_timeline(chrome_trace)
+                                    timeline_help_count += 1
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline,
+                                                             timeline_help_count,
+                                                             min_timeline_step, max_timeline_step)
 
                                     #print some images
                                     if comm_rank == 0:
@@ -639,19 +643,13 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                     sess.run(val_init_op, feed_dict={handle: val_handle}, options=options,
                                              run_metadata=run_metadata)
 
-                                    if enable_tf_timeline:
-                                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                                        chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                                        many_runs_timeline.update_timeline(chrome_trace)
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
                                     break
                             nvtx.RangePop() # Eval Loop
 
                     if enable_tf_timeline:
                         many_runs_timeline.save('Timeliner_output.json')
-
-                    if epoch >= num_epochs:
-                        break
 
                     # reset counters
                     epoch += 1
