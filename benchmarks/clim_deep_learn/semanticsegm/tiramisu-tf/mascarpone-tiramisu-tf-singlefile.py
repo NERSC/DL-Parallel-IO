@@ -562,7 +562,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                         update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps,
                                                  min_timeline_step, max_timeline_step)
 
-                        step_trace_fp = open("train_step_trace_" + str(epoch + "_") + str(step) +
+                        step_trace_fp = open("train_step_trace_" + str(epoch) + str(step) +
                                              str(time.time()) + ".pickle", "wb")
 
                         pickle.dump(run_metadata, step_trace_fp)
@@ -612,8 +612,8 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                              timeline_help_count,
                                                              min_timeline_step, max_timeline_step)
 
-                                    step_trace_fp = open("validation_step_trace_" + str(epoch + "_") + str(step) +
-                                                         + str(time.time()) + ".pickle", "wb")
+                                    step_trace_fp = open("validation_step_trace_" + str(epoch) + str(step) +
+                                                         str(time.time()) + ".pickle", "wb")
 
                                     pickle.dump(run_metadata, step_trace_fp)
 
