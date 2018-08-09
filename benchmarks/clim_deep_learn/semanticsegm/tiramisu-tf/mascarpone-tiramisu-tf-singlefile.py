@@ -6,6 +6,8 @@ from utility_classes.time_logger import TimeLogger as logger
 from utility_classes.time_logger import TimeLoggerCheckpointSaverListener as checkpoint_listener
 from utility_classes.timeliner import TimeLiner as timeliner
 
+import pickle
+
 import tensorflow as tf
 import tensorflow.contrib.keras as tfk
 from tensorflow.python.ops import array_ops
@@ -257,8 +259,10 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
     run_metadata = None
     many_runs_timeline = None
 
+    timeline_trace_fp = open("timeline_trace.pickle", "wb")
+
     options, run_metadata, many_runs_timeline, min_timeline_step, max_timeline_step = \
-        init_timeline_configs(enable_tf_timeline, tf.RunOptions.FULL_TRACE, 5, 10)
+        init_timeline_configs(enable_tf_timeline, tf.RunOptions.FULL_TRACE, 5, 6)
 
     global_time_logger = logger(-1, "Global Total Time", -1, True)
     global_time_logger.start_timer()
@@ -558,6 +562,11 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                         update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps,
                                                  min_timeline_step, max_timeline_step)
 
+                        step_trace_fp = open("train_step_trace_" + str(epoch + "_") + str(step) +
+                                             str(time.time()) + ".pickle", "wb")
+
+                        pickle.dump(run_metadata, step_trace_fp)
+
                         train_steps_in_epoch = train_steps%num_steps_per_epoch
                         train_loss += tmp_loss
                         nvtx.RangePop() # Step
@@ -599,10 +608,16 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                                                                     options=options,
                                                                                                     run_metadata=run_metadata)
 
-                                    timeline_help_count += 1
                                     update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline,
                                                              timeline_help_count,
                                                              min_timeline_step, max_timeline_step)
+
+                                    step_trace_fp = open("validation_step_trace_" + str(epoch + "_") + str(step) +
+                                                         + str(time.time()) + ".pickle", "wb")
+
+                                    pickle.dump(run_metadata, step_trace_fp)
+
+                                    timeline_help_count += 1
 
                                     #print some images
                                     if comm_rank == 0:
@@ -645,6 +660,11 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
 
                                     update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
 
+                                    step_trace_fp = open("validation_step_trace_out." + str(time.time()) +
+                                                         "pickle", "wb")
+
+                                    pickle.dump(run_metadata, step_trace_fp)
+
                                     break
                             nvtx.RangePop() # Eval Loop
 
@@ -671,6 +691,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
 
     if enable_tf_timeline:
         many_runs_timeline.save('Timeliner_output.json')
+        pickle.dump(run_metadata, timeline_trace_fp)
 
     io_training_time_logger.end_timer()
     global_time_logger.end_timer()

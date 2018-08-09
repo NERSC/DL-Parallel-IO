@@ -3,14 +3,18 @@
 
 import json
 
-
 class TimeLiner:
 
     def __init__(self):
         # Initialize members
         self._timeline_dict = None
 
-    def update_timeline(self, chrome_trace):
+    def update_timeline(self, chrome_trace, thread_id=300):
+        print "Chrome Trace >>>>>>>>>>>>>>>>"
+        thread_id_substring = "\"tid\": " + str(thread_id)
+        if chrome_trace.find(thread_id_substring) == -1:
+            return
+
         # convert chrome trace to python dict
         chrome_trace_dict = json.loads(chrome_trace)
         # for first run store full trace
