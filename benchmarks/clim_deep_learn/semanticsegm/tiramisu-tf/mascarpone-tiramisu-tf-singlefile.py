@@ -245,12 +245,12 @@ def init_timeline_configs(enable_tf_timeline, trace_level, min_timeline_step, ma
     return options, run_metadata, many_runs_timeline, min_timeline_step, max_timeline_step
 
 
-def update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps=-1,
+def update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, filename="", train_steps=-1,
                              min_step=-1, max_step=-1):
     if enable_tf_timeline and train_steps >= min_step and train_steps <= max_step:
         fetched_timeline = timeline.Timeline(run_metadata.step_stats)
         chrome_trace = fetched_timeline.generate_chrome_trace_format()
-        many_runs_timeline.update_timeline(chrome_trace)
+        many_runs_timeline.update_timeline(chrome_trace, filename)
 
 
 #main function
@@ -262,7 +262,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
     timeline_trace_fp = open("timeline_trace.pickle", "wb")
 
     options, run_metadata, many_runs_timeline, min_timeline_step, max_timeline_step = \
-        init_timeline_configs(enable_tf_timeline, tf.RunOptions.FULL_TRACE, 5, 6)
+        init_timeline_configs(enable_tf_timeline, tf.RunOptions.FULL_TRACE, -1, -1)
 
     global_time_logger = logger(-1, "Global Total Time", -1, True)
     global_time_logger.start_timer()
@@ -490,16 +490,16 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
             trn_handle, val_handle = sess.run([trn_handle_string, val_handle_string], options=options,
                                                run_metadata=run_metadata)
 
-            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
+            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, "create_iterator_handle.json")
 
             #init iterators
             sess.run(trn_init_op, feed_dict={handle: trn_handle}, options=options, run_metadata=run_metadata)
 
-            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
+            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, "init_train_iterator_handle.json")
 
             sess.run(val_init_op, feed_dict={handle: val_handle}, options=options, run_metadata=run_metadata)
 
-            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
+            update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, "init_val_iterator_handle.json")
 
             nvtx.RangePop()  # TF Init
 
@@ -528,7 +528,7 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                run_metadata=run_metadata)
 
                         update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps[0],
-                                                 min_timeline_step, max_timeline_step)
+                                                 "train_"+str(global_step)+".json", min_timeline_step, max_timeline_step)
 
                         train_steps_in_epoch = train_steps[0] % num_steps_per_epoch
 
@@ -540,14 +540,14 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                     sess.run([next_elem[1]], feed_dict={handle: val_handle}, options=options,
                                              run_metadata=run_metadata)
 
-                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, "val_dict"+str(eval_steps)+".json")
 
                                     eval_steps += 1
                                 except tf.errors.OutOfRangeError:
                                     sess.run(val_init_op, feed_dict={handle: val_handle}, options=options,
                                              run_metadata=run_metadata)
 
-                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, "val_dict_out_"+str(eval_steps)+".json")
 
                                     break
 
@@ -560,12 +560,11 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                             run_metadata=run_metadata)
 
                         update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline, train_steps,
-                                                 min_timeline_step, max_timeline_step)
+                                                 "val_"+str(global_step)+".json", min_timeline_step, max_timeline_step)
 
-                        step_trace_fp = open("train_step_trace_" + str(epoch) + str(step) +
-                                             str(time.time()) + ".pickle", "wb")
-
-                        pickle.dump(run_metadata, step_trace_fp)
+                        if comm_rank == 0:
+                            step_trace_fp = open("train_step_trace_" + str(global_step) + ".pickle", "wb")
+                            pickle.dump(run_metadata, step_trace_fp)
 
                         train_steps_in_epoch = train_steps%num_steps_per_epoch
                         train_loss += tmp_loss
@@ -609,13 +608,13 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                                                                                     run_metadata=run_metadata)
 
                                     update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline,
-                                                             timeline_help_count,
+                                                             timeline_help_count, "train_" + str(global_step) + ".json",
                                                              min_timeline_step, max_timeline_step)
 
-                                    step_trace_fp = open("validation_step_trace_" + str(epoch) + str(step) +
-                                                         str(time.time()) + ".pickle", "wb")
-
-                                    pickle.dump(run_metadata, step_trace_fp)
+                                    if comm_rank == 0:
+                                        step_trace_fp = open("validation_step_trace_" + str(global_step) +
+                                                             ".pickle", "wb")
+                                        pickle.dump(run_metadata, step_trace_fp)
 
                                     timeline_help_count += 1
 
@@ -658,12 +657,12 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
                                     sess.run(val_init_op, feed_dict={handle: val_handle}, options=options,
                                              run_metadata=run_metadata)
 
-                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline)
+                                    update_timeline_in_range(enable_tf_timeline, run_metadata, many_runs_timeline,
+                                                             "train_" + str(global_step) + ".json")
 
-                                    step_trace_fp = open("validation_step_trace_out." + str(time.time()) +
-                                                         "pickle", "wb")
-
-                                    pickle.dump(run_metadata, step_trace_fp)
+                                    if comm_rank == 0:
+                                        step_trace_fp = open("validation_step_trace_out.pickle", "wb")
+                                        pickle.dump(run_metadata, step_trace_fp)
 
                                     break
                             nvtx.RangePop() # Eval Loop
@@ -691,7 +690,6 @@ def main(input_path, blocks, weights, image_dir, checkpoint_dir, trn_sz, learnin
 
     if enable_tf_timeline:
         many_runs_timeline.save('Timeliner_output.json')
-        pickle.dump(run_metadata, timeline_trace_fp)
 
     io_training_time_logger.end_timer()
     global_time_logger.end_timer()
